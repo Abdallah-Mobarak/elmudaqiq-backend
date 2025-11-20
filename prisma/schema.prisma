@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+
+model Role {
+  id       Int     @id @default(autoincrement())
+  name     String
+  users    User[]
+}
+
+model User {
+  id            Int     @id @default(autoincrement())
+  fullName      String
+  email         String  @unique
+  password      String
+  phone         String?
+  status        String  @default("active")
+  roleId        Int
+  Role          Role    @relation(fields: [roleId], references: [id])
+  otp           String? 
+  otpExpiresAt  DateTime?
+
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+model Country {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  cpaWebsite      String?
+  commerceWebsite String?
+  taxWebsite      String?
+
+  cities    City[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model City {
+  id        Int      @id @default(autoincrement())
+  name      String
+  country   Country  @relation(fields: [countryId], references: [id])
+  countryId Int
+  regions   Region[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Region {
+  id        Int      @id @default(autoincrement())
+  name      String
+  city      City     @relation(fields: [cityId], references: [id])
+  cityId    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SystemSettings {
+  id                 Int      @id @default(autoincrement())
+  companyName        String?
+  companyEmail       String?
+  companyPhone       String?
+  address            String?
+  taxNumber          String?
+  commercialRegister String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+
+model AuthorityWebsite {
+  id        Int      @id @default(autoincrement())
+  name      String
+  url       String
+  category  String?
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AccountGuide {
+  id          Int      @id @default(autoincrement())
+
+  level       String
+  accountNumber Int
+  accountName String
+
+  rulesAndRegulations String?
+  disclosureNotes     String?
+
+  code1       String?
+  code2       String?
+  code3       String?
+  code4       String?
+  code5       String?
+  code6       String?
+  code7       String?
+  code8       String?
+
+  objectiveCode      String?
+  relatedObjectives  String?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

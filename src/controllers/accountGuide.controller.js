@@ -71,6 +71,73 @@ module.exports = {
     } catch (err) {
       next(err);
     }
+  },
+
+
+  importExcel: async (req, res, next) => {
+    try {
+      if (!req.file) {
+        throw { customMessage: "Excel file is required", status: 400 };
+      }
+
+      const result = await accountGuideService.importExcel(req.file);
+      res.json(result);
+
+    } catch (err) {
+      next(err);
+    }
+  },
+exportPDF: async (req, res, next) => {
+  try {
+    const { filePath, stream } = await accountGuideService.exportPDF(req.query);
+
+    stream.on("finish", () => {
+      return res.download(filePath);
+    });
+
+    stream.on("error", (err) => {
+      next(err);
+    });
+
+  } catch (err) {
+    next(err);
   }
+},
+exportOnePDF: async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const { filePath, stream } = await accountGuideService.exportPDF({ id });
+
+    stream.on("finish", () => {
+      return res.download(filePath);
+    });
+
+    stream.on("error", (err) => next(err));
+
+  } catch (err) {
+    next(err);
+  }
+},
+
+exportExcel: async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const { filePath } = await accountGuideService.exportExcel(
+      { ...req.query, id: undefined }, // <-- مهم جدًا
+      id
+    );
+
+    return res.download(filePath);
+  } catch (err) {
+    next(err);
+  }
+},
+
+
+
+
+
 
 };

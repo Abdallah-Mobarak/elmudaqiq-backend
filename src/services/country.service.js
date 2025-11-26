@@ -36,8 +36,12 @@ module.exports = {
   getAllCountries: async () => {
     return prisma.country.findMany({
       include: {
-        cities: true
+        cities:  {
+          include: {
+            regions: true
+          }
       }
+    }
     });
   },
 

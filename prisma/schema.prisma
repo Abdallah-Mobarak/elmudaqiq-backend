@@ -110,3 +110,125 @@ model AccountGuide {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
+
+model ReviewGuide {
+  id                Int      @id @default(autoincrement())
+  level             String?
+  separator         String?
+  number            String?
+  statement         String?
+  purpose           String?
+  responsiblePerson String?
+  datePrepared      DateTime?
+  dateReviewed      DateTime?
+  conclusion        String?
+  attachments       String?
+  notes1            String?
+  notes2            String?
+  notes3            String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model FileStage {
+  id                     Int      @id @default(autoincrement())
+  stageCode              String?
+  stage                  String?
+  entityType             String?
+  economicSector         String?
+  procedure              String?
+  scopeOfProcedure       String?
+  selectionMethod        String?
+  examplesOfUse          String?
+  IAS                    String?
+  IFRS                   String?
+  ISA                    String?
+  relevantPolicies       String?
+  detailedExplanation    String?
+  formsToBeCompleted     String?
+  practicalProcedures    String?
+  associatedRisks        String?
+  riskLevel              String?
+  responsibleAuthority   String?
+  outputs                String?
+  implementationPeriod   String?
+  strengths              String?
+  potentialWeaknesses    String?
+  performanceIndicators  String?
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+
+model ReviewObjective {
+  id                   Int      @id @default(autoincrement())
+  objectiveCode        String?
+  objectiveDescription String?
+  objectiveCategory    String?
+  relatedProcedures    String?
+  expectedOutput       String?
+  risks                String?
+  riskLevel            String?
+  controlMeasures      String?
+  indicators           String?
+  referenceStandards   String?
+  notes                String?
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+
+model ReviewObjectiveStage {
+  id                            Int      @id @default(autoincrement())
+  codesCollected                String?   // "A,B,C"
+  numberOfCollectedObjectives   Int?    // auto calculated
+
+  ethicalCompliancePercentage   Float?
+  professionalPlanningPercentage Float?
+  internalControlPercentage     Float?
+  evidencePercentage            Float?
+  evaluationPercentage          Float?
+  documentationPercentage       Float?
+
+  totalRelativeWeight           Float?
+  implementationStatus          String?
+  actualPerformance             Float?
+  gapPercentage                 Float?
+
+  codeOfEthics                  String?
+  policies                      String?
+  ifrs                          String?
+  ias                           String?
+  notes                         String?
+
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+}
+
+
+
+model ReviewMarkIndex {
+  id              Int      @id @default(autoincrement())
+
+  codeImage       String?   // image path
+  name            String?
+  shortDescription String?
+  suggestedStage  String?
+  whenToUse       String?
+  exampleShortForm String?
+  sectorTags      String?
+  assertion       String?
+  benchmark       String?
+
+  scoreWeight     Float?
+  severityLevel   Int?
+  severityWeight  Float?
+
+  priorityScore   Float?   // auto calculated
+  priorityRating  String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

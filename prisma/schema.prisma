@@ -30,6 +30,8 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+
 model Country {
   id        Int      @id @default(autoincrement())
   name      String   @unique
@@ -38,6 +40,8 @@ model Country {
   taxWebsite      String?
 
   cities    City[]
+  subscribers  Subscriber[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -48,6 +52,8 @@ model City {
   country   Country  @relation(fields: [countryId], references: [id])
   countryId Int
   regions   Region[]
+
+  subscribers Subscriber[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -57,6 +63,8 @@ model Region {
   name      String
   city      City     @relation(fields: [cityId], references: [id])
   cityId    Int
+
+  subscribers Subscriber[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -231,4 +239,100 @@ model ReviewMarkIndex {
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+
+
+enum SubscriberStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  SUSPENDED
+}
+
+model Subscriber {
+  id        Int      @id @default(autoincrement())
+
+  // ===============================
+  // Location
+  // ===============================
+  countryId Int
+  cityId    Int
+  regionId  Int
+
+  country   Country @relation(fields: [countryId], references: [id])
+  city      City    @relation(fields: [cityId], references: [id])
+  region    Region  @relation(fields: [regionId], references: [id])
+
+  cpaWebsite      String?
+  commerceWebsite String?
+  taxWebsite      String?
+
+  // ===============================
+  // License
+  // ===============================
+  licenseType        String
+  licenseNumber      String   @unique
+  licenseCertificate String
+  licenseDate        DateTime
+  licenseName        String
+
+  // ===============================
+  // Legal Entity
+  // ===============================
+  legalEntityType        String
+  legalEntityNationality String
+
+  articlesOfAssociationFile String?
+  commercialRegisterFile    String?
+  ownersNames               String
+  commercialRegisterNumber  String
+
+  taxNumber          String
+  taxCertificateFile String
+
+  unifiedNumber     String
+  unifiedNumberFile String
+
+  commercialActivityFile String
+  commercialRegisterDate DateTime
+  fiscalYear             DateTime
+
+  subscriberEmail String
+  primaryMobile   String
+
+  // ===============================
+  // Security & Admin
+  // ===============================
+  status            SubscriberStatus @default(PENDING)
+  subscriptionDate DateTime?
+  lastLogin         DateTime?
+  internalNotes     String?
+
+  // ===============================
+  // Subscription & Billing
+  // ===============================
+  subscriptionType      String?
+  subscriptionStartDate DateTime?
+  subscriptionEndDate   DateTime?
+  paidFees              Float?
+  paymentMethod         String?
+  numberOfUsers         Int?
+  numberOfClients       Int?
+  numberOfBranches      Int?
+
+  // ===============================
+  // Technical
+  // ===============================
+  facilityLink String?
+  factoryLogo  String?
+  language     String?
+  currency     String?
+
+  // ===============================
+  // System
+  // ===============================
+  subdomain  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

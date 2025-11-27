@@ -32,6 +32,7 @@ app.use("/file-stages", require("./routes/fileStages.routes"));
 app.use("/review-objectives", require("./routes/reviewObjective.routes"));
 app.use("/review-objective-stages", require("./routes/reviewObjectiveStage.routes"));
 app.use("/review-marks-index", require("./routes/reviewMarkIndex.routes"));
+app.use("/subscribers", require("./routes/subscriber.routes"));
 
 
 // Error Handler (ALWAYS LAST)

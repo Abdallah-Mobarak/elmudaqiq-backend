@@ -23,5 +23,5 @@ router.get("/:id/export/excel", authMiddleware, adminMiddleware, reviewMarkIndex
 // EXPORT PDF
 // router.get("/export/pdf", authMiddleware, adminMiddleware, reviewMarkIndexController.exportPDF);
 // router.get("/:id/export/pdf", authMiddleware, adminMiddleware, reviewMarkIndexController.exportOnePDF);
-
+ 
 module.exports = router;

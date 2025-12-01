@@ -2,6 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const { PrismaClient } = require("@prisma/client");
+const chalk = require("chalk");
 
 dotenv.config();
 
@@ -21,6 +22,8 @@ app.use("/uploads", express.static("uploads"));
 // Routes
 const authRoutes = require("./routes/auth.routes");
 app.use("/auth", authRoutes);
+require("./cron/renewalNotifications.job");
+
 app.use("/countries", require("./routes/country.routes"));
 app.use("/cities", require("./routes/city.routes"));
 app.use("/regions", require("./routes/region.routes"));
@@ -33,13 +36,37 @@ app.use("/review-objectives", require("./routes/reviewObjective.routes"));
 app.use("/review-objective-stages", require("./routes/reviewObjectiveStage.routes"));
 app.use("/review-marks-index", require("./routes/reviewMarkIndex.routes"));
 app.use("/subscribers", require("./routes/subscriber.routes"));
+app.use("/complaints", require("./routes/complaint.routes"));
+app.use("/reports", require("./routes/reports.routes"));
+app.use("/notifications",  require("./routes/notification.routes"));
+app.use("/activity-logs", require("./routes/activityLog.routes"));
 
 
 // Error Handler (ALWAYS LAST)
 app.use(errorMiddleware);
-
+ 
 const PORT = process.env.PORT || 4000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on PORT ${PORT}`);
-});
+async function startServer() {
+  try {
+    app.listen(PORT, () => {
+      console.log(chalk.bgGreen.black(`Server running on PORT ${PORT}`));
+    });
+
+    console.log(chalk.blue("-- Checking database connection --"));
+
+    await prisma.$connect();
+    console.log(chalk.bold.green("Database connected Successfully"));
+
+    await prisma.$queryRaw`SELECT 1`;
+    console.log(chalk.bold.green("Database synced "));
+
+
+  } catch (error) {
+    console.error(chalk.red("Database connection failed!"));
+    console.error(error);
+    process.exit(1); 
+  }
+}
+startServer();
+

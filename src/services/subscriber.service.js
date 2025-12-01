@@ -3,10 +3,32 @@ const prisma = new PrismaClient();
 // ===============================
 // Utils
 // ===============================
-const generateSubdomain = (name) => {
-  const clean = name.toLowerCase().replace(/[^a-z0-9]/g, "");
-  return `www.almudaqiq.${clean}.com`;
+const generateUniqueSubdomain = async (name) => {
+  let clean = (name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+  if (!clean) clean = "subscriber";
+
+  let attempt = 0;
+
+  while (true) {
+    const suffix = attempt === 0 ? "" : `-${attempt}`;
+    const subdomain = `www.almudaqiq.${clean}${suffix}.com`;
+
+    const existing = await prisma.subscriber.findUnique({
+      where: { subdomain },
+    });
+
+    if (!existing) {
+      return subdomain;
+    }
+
+    attempt++;
+  }
 };
+
+
 
 const getFile = (files, name) => files?.[name]?.[0]?.path || null;
 
@@ -48,7 +70,7 @@ exports.create = async (data, files) => {
     throw { status: 400, message: "License already exists" };
   }
 
-  const subdomain = generateSubdomain(data.licenseName);
+const subdomain = await generateUniqueSubdomain(data.licenseName);
 
   return prisma.subscriber.create({
     data: {
@@ -123,7 +145,14 @@ exports.create = async (data, files) => {
 // View Subscribers + Filters
 // ===============================
 exports.getAll = async (query) => {
-  const { page = 1, limit = 10, status, countryId, cityId, regionId } = query;
+  const {
+    page = 1,
+    limit = 10,
+    status,
+    countryId,
+    cityId,
+    regionId,
+  } = query;
 
   const where = {};
 
@@ -132,20 +161,33 @@ exports.getAll = async (query) => {
   if (cityId) where.cityId = Number(cityId);
   if (regionId) where.regionId = Number(regionId);
 
-  const skip = (page - 1) * limit;
+  const skip = (Number(page) - 1) * Number(limit);
 
   const [data, total] = await Promise.all([
     prisma.subscriber.findMany({
       where,
-      skip: Number(skip),
+      skip,
       take: Number(limit),
       orderBy: { createdAt: "desc" },
+
+      include: {
+        country: {
+          select: { id: true, name: true },
+        },
+        city: {
+          select: { id: true, name: true },
+        },
+        region: {
+          select: { id: true, name: true },
+        },
+      },
     }),
     prisma.subscriber.count({ where }),
   ]);
 
   return { data, total };
 };
+
 
 // ===============================
 // Update Subscriber (Editable Only)

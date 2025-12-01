@@ -7,40 +7,39 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model Role {
-  id       Int     @id @default(autoincrement())
-  name     String
-  users    User[]
+  id    Int    @id @default(autoincrement())
+  name  String
+  users User[]
 }
 
 model User {
-  id            Int     @id @default(autoincrement())
-  fullName      String
-  email         String  @unique
-  password      String
-  phone         String?
-  status        String  @default("active")
-  roleId        Int
-  Role          Role    @relation(fields: [roleId], references: [id])
-  otp           String? 
-  otpExpiresAt  DateTime?
+  id           Int       @id @default(autoincrement())
+  fullName     String
+  email        String    @unique
+  password     String
+  phone        String?
+  status       String    @default("active")
+  roleId       Int
+  Role         Role      @relation(fields: [roleId], references: [id])
+  otp          String?
+  otpExpiresAt DateTime?
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  activityLogs ActivityLog[]
 }
 
-
 model Country {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
+  id              Int     @id @default(autoincrement())
+  name            String  @unique
   cpaWebsite      String?
   commerceWebsite String?
   taxWebsite      String?
 
-  cities    City[]
-  subscribers  Subscriber[]
+  cities      City[]
+  subscribers Subscriber[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -54,19 +53,19 @@ model City {
   regions   Region[]
 
   subscribers Subscriber[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 }
 
 model Region {
-  id        Int      @id @default(autoincrement())
-  name      String
-  city      City     @relation(fields: [cityId], references: [id])
-  cityId    Int
+  id     Int    @id @default(autoincrement())
+  name   String
+  city   City   @relation(fields: [cityId], references: [id])
+  cityId Int
 
   subscribers Subscriber[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 }
 
 model SystemSettings {
@@ -81,7 +80,6 @@ model SystemSettings {
   updatedAt          DateTime @updatedAt
 }
 
-
 model AuthorityWebsite {
   id        Int      @id @default(autoincrement())
   name      String
@@ -94,33 +92,33 @@ model AuthorityWebsite {
 }
 
 model AccountGuide {
-  id          Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  level       String
+  level         String
   accountNumber Int
-  accountName String
+  accountName   String
 
   rulesAndRegulations String?
   disclosureNotes     String?
 
-  code1       String?
-  code2       String?
-  code3       String?
-  code4       String?
-  code5       String?
-  code6       String?
-  code7       String?
-  code8       String?
+  code1 String?
+  code2 String?
+  code3 String?
+  code4 String?
+  code5 String?
+  code6 String?
+  code7 String?
+  code8 String?
 
-  objectiveCode      String?
-  relatedObjectives  String?
+  objectiveCode     String?
+  relatedObjectives String?
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ReviewGuide {
-  id                Int      @id @default(autoincrement())
+  id                Int       @id @default(autoincrement())
   level             String?
   separator         String?
   number            String?
@@ -134,43 +132,42 @@ model ReviewGuide {
   notes1            String?
   notes2            String?
   notes3            String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 }
 
 model FileStage {
-  id                     Int      @id @default(autoincrement())
-  stageCode              String?
-  stage                  String?
-  entityType             String?
-  economicSector         String?
-  procedure              String?
-  scopeOfProcedure       String?
-  selectionMethod        String?
-  examplesOfUse          String?
-  IAS                    String?
-  IFRS                   String?
-  ISA                    String?
-  relevantPolicies       String?
-  detailedExplanation    String?
-  formsToBeCompleted     String?
-  practicalProcedures    String?
-  associatedRisks        String?
-  riskLevel              String?
-  responsibleAuthority   String?
-  outputs                String?
-  implementationPeriod   String?
-  strengths              String?
-  potentialWeaknesses    String?
-  performanceIndicators  String?
+  id                    Int     @id @default(autoincrement())
+  stageCode             String?
+  stage                 String?
+  entityType            String?
+  economicSector        String?
+  procedure             String?
+  scopeOfProcedure      String?
+  selectionMethod       String?
+  examplesOfUse         String?
+  IAS                   String?
+  IFRS                  String?
+  ISA                   String?
+  relevantPolicies      String?
+  detailedExplanation   String?
+  formsToBeCompleted    String?
+  practicalProcedures   String?
+  associatedRisks       String?
+  riskLevel             String?
+  responsibleAuthority  String?
+  outputs               String?
+  implementationPeriod  String?
+  strengths             String?
+  potentialWeaknesses   String?
+  performanceIndicators String?
 
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-
 model ReviewObjective {
-  id                   Int      @id @default(autoincrement())
+  id                   Int     @id @default(autoincrement())
   objectiveCode        String?
   objectiveDescription String?
   objectiveCategory    String?
@@ -183,65 +180,60 @@ model ReviewObjective {
   referenceStandards   String?
   notes                String?
 
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
-
 
 model ReviewObjectiveStage {
-  id                            Int      @id @default(autoincrement())
-  codesCollected                String?   // "A,B,C"
-  numberOfCollectedObjectives   Int?    // auto calculated
+  id                          Int     @id @default(autoincrement())
+  codesCollected              String? // "A,B,C"
+  numberOfCollectedObjectives Int? // auto calculated
 
-  ethicalCompliancePercentage   Float?
+  ethicalCompliancePercentage    Float?
   professionalPlanningPercentage Float?
-  internalControlPercentage     Float?
-  evidencePercentage            Float?
-  evaluationPercentage          Float?
-  documentationPercentage       Float?
+  internalControlPercentage      Float?
+  evidencePercentage             Float?
+  evaluationPercentage           Float?
+  documentationPercentage        Float?
 
-  totalRelativeWeight           Float?
-  implementationStatus          String?
-  actualPerformance             Float?
-  gapPercentage                 Float?
+  totalRelativeWeight  Float?
+  implementationStatus String?
+  actualPerformance    Float?
+  gapPercentage        Float?
 
-  codeOfEthics                  String?
-  policies                      String?
-  ifrs                          String?
-  ias                           String?
-  notes                         String?
+  codeOfEthics String?
+  policies     String?
+  ifrs         String?
+  ias          String?
+  notes        String?
 
-  createdAt                     DateTime @default(now())
-  updatedAt                     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
-
-
 
 model ReviewMarkIndex {
-  id              Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  codeImage       String?   // image path
-  name            String?
+  codeImage        String? // image path
+  name             String?
   shortDescription String?
-  suggestedStage  String?
-  whenToUse       String?
+  suggestedStage   String?
+  whenToUse        String?
   exampleShortForm String?
-  sectorTags      String?
-  assertion       String?
-  benchmark       String?
+  sectorTags       String?
+  assertion        String?
+  benchmark        String?
 
-  scoreWeight     Float?
-  severityLevel   Int?
-  severityWeight  Float?
+  scoreWeight    Float?
+  severityLevel  Int?
+  severityWeight Float?
 
-  priorityScore   Float?   // auto calculated
-  priorityRating  String?
+  priorityScore  Float? // auto calculated
+  priorityRating String?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
-
-
 
 enum SubscriberStatus {
   ACTIVE
@@ -251,7 +243,7 @@ enum SubscriberStatus {
 }
 
 model Subscriber {
-  id        Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   // ===============================
   // Location
@@ -260,9 +252,9 @@ model Subscriber {
   cityId    Int
   regionId  Int
 
-  country   Country @relation(fields: [countryId], references: [id])
-  city      City    @relation(fields: [cityId], references: [id])
-  region    Region  @relation(fields: [regionId], references: [id])
+  country Country @relation(fields: [countryId], references: [id])
+  city    City    @relation(fields: [cityId], references: [id])
+  region  Region  @relation(fields: [regionId], references: [id])
 
   cpaWebsite      String?
   commerceWebsite String?
@@ -304,10 +296,10 @@ model Subscriber {
   // ===============================
   // Security & Admin
   // ===============================
-  status            SubscriberStatus @default(PENDING)
+  status           SubscriberStatus @default(PENDING)
   subscriptionDate DateTime?
-  lastLogin         DateTime?
-  internalNotes     String?
+  lastLogin        DateTime?
+  internalNotes    String?
 
   // ===============================
   // Subscription & Billing
@@ -322,6 +314,12 @@ model Subscriber {
   numberOfBranches      Int?
 
   // ===============================
+  // Renewal Report Fields (1.5)
+  // ===============================
+  lastRenewalNotification DateTime?
+  renewalStatus           String    @default("PENDING")
+
+  // ===============================
   // Technical
   // ===============================
   facilityLink String?
@@ -332,7 +330,86 @@ model Subscriber {
   // ===============================
   // System
   // ===============================
-  subdomain  String   @unique
+  subdomain String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // ===============================
+  // Relation
+  // =============================== 
+  complaints    Complaint[]
+  notifications Notification[]
+  activityLogs  ActivityLog[]
+}
+
+enum ComplaintType {
+  COMMERCIAL
+  TECHNICAL
+}
+
+model Complaint {
+  id Int @id @default(autoincrement())
+
+  // ===============================
+  // Subscriber Relation
+  // ===============================
+  subscriberId Int
+  subscriber   Subscriber @relation(fields: [subscriberId], references: [id])
+
+  // ===============================
+  // Complaint Data
+  // ===============================
+  subscriberName String
+  phone          String
+  email          String
+  message        String
+
+  type          ComplaintType
+  complaintDate DateTime      @default(now())
+
+  // ===============================
+  // Admin Response
+  // ===============================
+  response    String?
+  respondedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Notification {
+  id Int @id @default(autoincrement())
+
+  title   String
+  message String
+
+  // Subscriber Notification  
+  subscriberId Int?
+  subscriber   Subscriber? @relation(fields: [subscriberId], references: [id])
+
+  // Admin Notification 
+  isRead Boolean @default(false)
+
+  type String // RENEWAL | COMPLAINT | SYSTEM
+
+  createdAt DateTime @default(now())
+}
+
+model ActivityLog {
+  id Int @id @default(autoincrement())
+
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id])
+
+  subscriberId Int?
+  subscriber   Subscriber? @relation(fields: [subscriberId], references: [id])
+
+  userType String // ADMIN | SUBSCRIBER
+  action   String
+  message  String
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
 }

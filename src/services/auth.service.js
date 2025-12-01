@@ -25,10 +25,12 @@ module.exports = {
   const token = jwt.sign(
     { id: user.id, role: user.roleId },
     process.env.JWT_SECRET,
-    { expiresIn: "1h" }
+    { expiresIn: "1d" }
   );
 
-  return { message: "Login successful", token };
+  return { message: "Login successful", token, userId: user.id,
+  fullName: user.fullName,
+  email: user.email };
 },
 
 sendOTP: async (email) => {

@@ -1,19 +1,32 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const logActivity = require("../utils/logActivity");
 
 const authService = require("../services/auth.service");
 
 
 
 module.exports = {
-  login: async (req, res,next) => {
-    try {
-      const data = await authService.login(req.body);
-      res.json(data);
-    } catch (err) {
-      next(err)
-    }
-  },
+  login: async (req, res, next) => {
+  try {
+    const data = await authService.login(req.body);
+
+    //  Log login activity
+  await logActivity({
+  userId: data.userId,
+  userType: "ADMIN",
+  action: "LOGIN",
+  message: "Admin logged in successfully",
+  req
+});
+
+
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+},
+
 
   sendOTP: async (req, res,next) => {
   try {

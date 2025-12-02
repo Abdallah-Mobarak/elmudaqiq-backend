@@ -40,6 +40,7 @@ app.use("/complaints", require("./routes/complaint.routes"));
 app.use("/reports", require("./routes/reports.routes"));
 app.use("/notifications",  require("./routes/notification.routes"));
 app.use("/activity-logs", require("./routes/activityLog.routes"));
+app.use("/kpi", require("./routes/kpi.routes"));
 
 
 // Error Handler (ALWAYS LAST)

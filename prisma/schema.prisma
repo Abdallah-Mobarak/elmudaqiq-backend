@@ -413,3 +413,15 @@ model ActivityLog {
 
   createdAt DateTime @default(now())
 }
+
+model UploadedFile {
+  id         Int      @id @default(autoincrement())
+  name       String
+  path       String
+  size       Int
+  type       String   // EXCEL | IMAGE | PDF
+  source     String   // SUBSCRIBER | COMPLAINT | REVIEW | ACCOUNT
+  createdAt DateTime @default(now())
+}
+
+

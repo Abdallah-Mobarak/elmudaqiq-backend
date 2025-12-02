@@ -212,51 +212,63 @@ delete: async (id) => {
   },
 
 importExcel: async (fileBuffer) => {
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(fileBuffer.buffer);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(fileBuffer.buffer);
 
-    const sheet = workbook.worksheets[0];
+  const sheet = workbook.worksheets[0];
 
-    if (!sheet) {
-      throw { customMessage: "Excel sheet not found", status: 400 };
-    }
+  if (!sheet) {
+    throw { customMessage: "Excel sheet not found", status: 400 };
+  }
 
-    let imported = 0;
-    const rows = [];
+  let imported = 0;
+  const rows = [];
 
-    sheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return; // skip header row
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return; // skip header row
 
-      rows.push({
-        level: row.getCell(1).value?.toString().trim() || "",
-        accountNumber: Number(row.getCell(2).value) || 0,
-        accountName: row.getCell(3).value?.toString().trim() || "",
-        rulesAndRegulations: row.getCell(4).value?.toString().trim() || "",
-        disclosureNotes: row.getCell(5).value?.toString().trim() || "",
-        code1: row.getCell(6).value?.toString().trim() || "",
-        code2: row.getCell(7).value?.toString().trim() || "",
-        code3: row.getCell(8).value?.toString().trim() || "",
-        code4: row.getCell(9).value?.toString().trim() || "",
-        code5: row.getCell(10).value?.toString().trim() || "",
-        code6: row.getCell(11).value?.toString().trim() || "",
-        code7: row.getCell(12).value?.toString().trim() || "",
-        code8: row.getCell(13).value?.toString().trim() || "",
-        objectiveCode: row.getCell(14).value?.toString().trim() || "",
-        relatedObjectives: row.getCell(15).value?.toString().trim() || "",
-      });
+    rows.push({
+      level: row.getCell(1).value?.toString().trim() || "",
+      accountNumber: Number(row.getCell(2).value) || 0,
+      accountName: row.getCell(3).value?.toString().trim() || "",
+      rulesAndRegulations: row.getCell(4).value?.toString().trim() || "",
+      disclosureNotes: row.getCell(5).value?.toString().trim() || "",
+      code1: row.getCell(6).value?.toString().trim() || "",
+      code2: row.getCell(7).value?.toString().trim() || "",
+      code3: row.getCell(8).value?.toString().trim() || "",
+      code4: row.getCell(9).value?.toString().trim() || "",
+      code5: row.getCell(10).value?.toString().trim() || "",
+      code6: row.getCell(11).value?.toString().trim() || "",
+      code7: row.getCell(12).value?.toString().trim() || "",
+      code8: row.getCell(13).value?.toString().trim() || "",
+      objectiveCode: row.getCell(14).value?.toString().trim() || "",
+      relatedObjectives: row.getCell(15).value?.toString().trim() || "",
     });
+  });
 
-    // Insert into DB
-    for (const r of rows) {
-      await prisma.accountGuide.create({ data: r });
-      imported++;
+  // Insert rows into DB
+  for (const r of rows) {
+    await prisma.accountGuide.create({ data: r });
+    imported++;
+  }
+
+  //  Register this file in uploaded files table (KPI)
+  await prisma.uploadedFile.create({
+    data: {
+      name: fileBuffer.originalname,
+      path: `memory://${fileBuffer.originalname}`, 
+      size: fileBuffer.size,
+      type: fileBuffer.mimetype,     // EXCEL
+      source: "ACCOUNT_GUIDE"
     }
+  });
 
-    return {
-      message: "Import completed successfully",
-      imported,
-    };
-  },
+  return {
+    message: "Import completed successfully",
+    imported,
+  };
+},
+
 
   
   // ---------------- EXPORT PDF ---------------- //

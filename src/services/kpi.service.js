@@ -194,7 +194,7 @@ module.exports = {
     previousTotalFiles: previousTotal,
     filesChangePercentage: Number(filesChangePercentage.toFixed(2)),
     filesTrend: filesChangePercentage >= 0 ? "UP" : "DOWN",
-
+    
     //  SIZE KPI
     totalSizeBytes: currentSizeBytes,
     totalSizeMB: Number((currentSizeBytes / (1024 * 1024)).toFixed(2)),

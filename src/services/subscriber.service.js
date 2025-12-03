@@ -1,5 +1,6 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+
 // ===============================
 // Utils
 // ===============================
@@ -28,12 +29,10 @@ const generateUniqueSubdomain = async (name) => {
   }
 };
 
-
-
 const getFile = (files, name) => files?.[name]?.[0]?.path || null;
 
 // ===============================
-// Add Subscriber
+// Add Subscriber (✅ WITH PLAN - NO PAYMENT)
 // ===============================
 exports.create = async (data, files) => {
   const requiredFields = [
@@ -54,6 +53,7 @@ exports.create = async (data, files) => {
     "fiscalYear",
     "subscriberEmail",
     "primaryMobile",
+    "planId" // ✅ REQUIRED
   ];
 
   for (const field of requiredFields) {
@@ -70,7 +70,27 @@ exports.create = async (data, files) => {
     throw { status: 400, message: "License already exists" };
   }
 
-const subdomain = await generateUniqueSubdomain(data.licenseName);
+  // ===============================
+  // ✅ GET PLAN & CALCULATE END DATE
+  // ===============================
+  const plan = await prisma.plan.findUnique({
+    where: { id: Number(data.planId) }
+  });
+
+  if (!plan) {
+    throw { status: 400, message: "Invalid Plan ID" };
+  }
+
+  let subscriptionEndDate = null;
+
+  if (data.subscriptionStartDate) {
+    subscriptionEndDate = new Date(data.subscriptionStartDate);
+    subscriptionEndDate.setMonth(
+      subscriptionEndDate.getMonth() + Number(plan.durationMonths)
+    );
+  }
+
+  const subdomain = await generateUniqueSubdomain(data.licenseName);
 
   return prisma.subscriber.create({
     data: {
@@ -110,25 +130,12 @@ const subdomain = await generateUniqueSubdomain(data.licenseName);
         ? new Date(data.subscriptionDate)
         : null,
 
-      subscriptionType: data.subscriptionType || null,
+      // ✅ PLAN ONLY (NO PAYMENT)
+      planId: Number(data.planId),
       subscriptionStartDate: data.subscriptionStartDate
         ? new Date(data.subscriptionStartDate)
         : null,
-      subscriptionEndDate: data.subscriptionEndDate
-        ? new Date(data.subscriptionEndDate)
-        : null,
-
-      paidFees: data.paidFees ? Number(data.paidFees) : null,
-      paymentMethod: data.paymentMethod || null,
-      numberOfUsers: data.numberOfUsers
-        ? Number(data.numberOfUsers)
-        : null,
-      numberOfClients: data.numberOfClients
-        ? Number(data.numberOfClients)
-        : null,
-      numberOfBranches: data.numberOfBranches
-        ? Number(data.numberOfBranches)
-        : null,
+      subscriptionEndDate,
 
       facilityLink: data.facilityLink || null,
       factoryLogo: getFile(files, "factoryLogo"),
@@ -142,7 +149,7 @@ const subdomain = await generateUniqueSubdomain(data.licenseName);
 };
 
 // ===============================
-// View Subscribers + Filters
+// View Subscribers + Filters (✅ WITH PLAN)
 // ===============================
 exports.getAll = async (query) => {
   const {
@@ -171,15 +178,22 @@ exports.getAll = async (query) => {
       orderBy: { createdAt: "desc" },
 
       include: {
-        country: {
-          select: { id: true, name: true },
-        },
-        city: {
-          select: { id: true, name: true },
-        },
-        region: {
-          select: { id: true, name: true },
-        },
+        country: { select: { id: true, name: true } },
+        city: { select: { id: true, name: true } },
+        region: { select: { id: true, name: true } },
+
+        // ✅ INCLUDE PLAN
+        plan: {
+          select: {
+            id: true,
+            name: true,
+            durationMonths: true,
+            paidFees: true,
+            usersLimit: true,
+            clientsLimit: true,
+            branchesLimit: true
+          }
+        }
       },
     }),
     prisma.subscriber.count({ where }),
@@ -188,14 +202,12 @@ exports.getAll = async (query) => {
   return { data, total };
 };
 
-
 // ===============================
 // Update Subscriber (Editable Only)
 // ===============================
 exports.update = async (id, data, files) => {
   const updateData = {};
 
-  // ✅ Editable Text Fields
   if (data.taxNumber !== undefined)
     updateData.taxNumber = data.taxNumber;
 
@@ -220,7 +232,6 @@ exports.update = async (id, data, files) => {
   if (data.internalNotes !== undefined)
     updateData.internalNotes = data.internalNotes;
 
-  // ✅ Editable Files (Only if uploaded)
   const getFile = (name) => files?.[name]?.[0]?.path;
 
   if (getFile("taxCertificateFile"))
@@ -235,13 +246,11 @@ exports.update = async (id, data, files) => {
   if (getFile("factoryLogo"))
     updateData.factoryLogo = getFile("factoryLogo");
 
-  // ✅ Final Update
   return prisma.subscriber.update({
     where: { id: Number(id) },
     data: updateData,
   });
 };
-
 
 // ===============================
 // Change Status (بدل Delete)

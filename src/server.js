@@ -41,6 +41,7 @@ app.use("/reports", require("./routes/reports.routes"));
 app.use("/notifications",  require("./routes/notification.routes"));
 app.use("/activity-logs", require("./routes/activityLog.routes"));
 app.use("/kpi", require("./routes/kpi.routes"));
+app.use("/plans", require("./routes/plan.routes"));
 
 
 // Error Handler (ALWAYS LAST)

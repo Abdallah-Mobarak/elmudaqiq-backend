@@ -304,14 +304,11 @@ model Subscriber {
   // ===============================
   // Subscription & Billing
   // ===============================
-  subscriptionType      String?
+  planId                Int?
   subscriptionStartDate DateTime?
   subscriptionEndDate   DateTime?
   paidFees              Float?
   paymentMethod         String?
-  numberOfUsers         Int?
-  numberOfClients       Int?
-  numberOfBranches      Int?
 
   // ===============================
   // Renewal Report Fields (1.5)
@@ -337,9 +334,11 @@ model Subscriber {
   // ===============================
   // Relation
   // =============================== 
+  plan          Plan?          @relation(fields: [planId], references: [id])
   complaints    Complaint[]
   notifications Notification[]
   activityLogs  ActivityLog[]
+  payments      Payment[]
 }
 
 enum ComplaintType {
@@ -415,13 +414,43 @@ model ActivityLog {
 }
 
 model UploadedFile {
-  id         Int      @id @default(autoincrement())
-  name       String
-  path       String
-  size       Int
-  type       String   // EXCEL | IMAGE | PDF
-  source     String   // SUBSCRIBER | COMPLAINT | REVIEW | ACCOUNT
+  id        Int      @id @default(autoincrement())
+  name      String
+  path      String
+  size      Int
+  type      String // EXCEL | IMAGE | PDF
+  source    String // SUBSCRIBER | COMPLAINT | REVIEW | ACCOUNT
   createdAt DateTime @default(now())
 }
 
+model Payment {
+  id Int @id @default(autoincrement())
 
+  subscriberId Int
+  subscriber   Subscriber @relation(fields: [subscriberId], references: [id])
+
+  amount Float
+  method String // CASH | VISA | WALLET
+  status String // PAID | REFUNDED | PENDING
+
+  paidAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+}
+
+model Plan {
+  id             Int     @id @default(autoincrement())
+  name           String
+  description    String?
+  durationMonths Int
+  paidFees       Float
+  usersLimit     Int
+  clientsLimit   Int
+  branchesLimit  Int
+  isActive       Boolean @default(true)
+
+  subscribers Subscriber[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

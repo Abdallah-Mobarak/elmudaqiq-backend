@@ -1,27 +1,21 @@
 const router = require("express").Router();
-const authMiddleware = require("../middleware/auth.middleware");
-const adminMiddleware = require("../middleware/admin.middleware");
+const auth = require("../middleware/auth.middleware");
+const admin = require("../middleware/admin.middleware");
 const uploadExcel = require("../middleware/uploadExcel");
 const uploadImage = require("../middleware/uploadImage");
 
-const reviewMarkIndexController = require("../controllers/reviewMarkIndex.controller");
+const controller = require("../controllers/reviewMarkIndex.controller");
 
 // CRUD
-router.post("/", authMiddleware, adminMiddleware, uploadImage.single("codeImage"), reviewMarkIndexController.create);
-router.get("/", authMiddleware, adminMiddleware, reviewMarkIndexController.getAll);
-router.get("/:id", authMiddleware, adminMiddleware, reviewMarkIndexController.getOne);
-router.put("/:id", authMiddleware, adminMiddleware, uploadImage.single("codeImage"), reviewMarkIndexController.update);
-router.delete("/:id", authMiddleware, adminMiddleware, reviewMarkIndexController.delete);
+router.post("/", auth, admin, uploadImage.single("codeImage"), controller.create);
+router.get("/", auth, admin, controller.getAll);
+router.get("/:id", auth, admin, controller.getOne);
+router.put("/:id", auth, admin, uploadImage.single("codeImage"), controller.update);
+router.delete("/:id", auth, admin, controller.delete);
 
-// IMPORT EXCEL
-router.post("/import", authMiddleware, adminMiddleware, uploadExcel.single("file"), reviewMarkIndexController.importExcel);
+// Import & Export
+router.post("/import", auth, admin, uploadExcel.single("file"), controller.importExcel);
+router.get("/export/excel", auth, admin, controller.exportExcel);
+router.get("/export/pdf", auth, admin, controller.exportPDF);
 
-// EXPORT EXCEL
-router.get("/export/excel", authMiddleware, adminMiddleware, reviewMarkIndexController.exportExcel);
-router.get("/:id/export/excel", authMiddleware, adminMiddleware, reviewMarkIndexController.exportExcel);
-
-// EXPORT PDF
-// router.get("/export/pdf", authMiddleware, adminMiddleware, reviewMarkIndexController.exportPDF);
-// router.get("/:id/export/pdf", authMiddleware, adminMiddleware, reviewMarkIndexController.exportOnePDF);
- 
 module.exports = router;

@@ -1,6 +1,6 @@
 // src/middleware/error.middleware.js
 module.exports = (err, req, res, next) => {
-  console.error("🔥 ERROR:", err);
+  console.error("ERROR:", err);
 
   // Prisma record not found
   if (err && err.code === "P2025") {

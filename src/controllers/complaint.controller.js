@@ -39,3 +39,17 @@ exports.respond = async (req, res, next) => {
     next(err);
   }
 };
+
+
+//  DELETE Complaint
+exports.delete = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const result = await complaintService.delete(id);
+
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};

@@ -22,4 +22,12 @@ router.patch(
   complaintController.respond
 );
 
+
+
+router.delete(
+  "/:id",
+  authMiddleware,
+  adminMiddleware,
+  complaintController.delete
+);
 module.exports = router;

@@ -1,6 +1,6 @@
 const subscriberService = require("../services/subscriber.service");
 
-// ✅ Add
+//  Add
 exports.create = async (req, res, next) => {
   try {
     const data = await subscriberService.create(req.body, req.files);
@@ -10,7 +10,7 @@ exports.create = async (req, res, next) => {
   }
 };
 
-// ✅ View All + Filters
+//  View All + Filters
 exports.getAll = async (req, res, next) => {
   try {
     const result = await subscriberService.getAll(req.query);
@@ -20,7 +20,7 @@ exports.getAll = async (req, res, next) => {
   }
 };
 
-// ✅ Update
+//  Update
 exports.update = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -31,7 +31,7 @@ exports.update = async (req, res, next) => {
   }
 };
 
-// ✅ Change Status
+//  Change Status
 exports.changeStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -40,6 +40,27 @@ exports.changeStatus = async (req, res, next) => {
     const data = await subscriberService.changeStatus(id, status);
 
     res.json({ message: "Status updated", data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+//  Export Excel
+exports.exportExcel = async (req, res, next) => {
+  try {
+    const { filePath } = await subscriberService.exportExcel(req.query);
+    return res.download(filePath);
+  } catch (err) {
+    next(err);
+  }
+};
+
+//  Export PDF
+exports.exportPDF = async (req, res, next) => {
+  try {
+    const { filePath, stream } = await subscriberService.exportPDF(req.query);
+    stream.on("finish", () => res.download(filePath));
   } catch (err) {
     next(err);
   }

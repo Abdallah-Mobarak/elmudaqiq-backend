@@ -1,35 +1,34 @@
-// src/utils/fileHandlers/importExcel.js
-
 const ExcelJS = require("exceljs");
 
-/**
- * importExcel
- * @param {Object} options
- * @param {string} options.filePath - مسار ملف الإكسيل اللي اترفع
- * @param {(row: any) => Object | null} options.mapRowToModel - دالة تحول الصف لـ object مناسب للداتابيز
- * @param {number} [options.headerRow] - رقم صف الـ header (افتراضي 1)
- * @returns {Promise<Array<Object>>}
- */
-const importExcel = async ({ filePath, mapRowToModel, headerRow = 1 }) => {
+/*
+  Generic Excel Import Function
+  - Accepts file buffer
+  - Accepts a row mapper
+  - Accepts insert handler
+*/
+
+module.exports = async ({ fileBuffer, rowMapper, insertHandler }) => {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(filePath);
+  await workbook.xlsx.load(fileBuffer.buffer);
 
-  const worksheet = workbook.worksheets[0]; // أول شيت
-  const result = [];
+  const sheet = workbook.worksheets[0];
+  if (!sheet) {
+    throw { customMessage: "Excel sheet not found", status: 400 };
+  }
 
-  worksheet.eachRow((row, rowNumber) => {
-    // تخطي صف الهيدر
-    if (rowNumber <= headerRow) return;
+  const rows = [];
 
-    const mapped = mapRowToModel(row);
-    if (mapped) {
-      result.push(mapped);
-    }
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+    rows.push(rowMapper(row));
   });
 
-  return result;
-};
+  let imported = 0;
 
-module.exports = {
-  importExcel,
+  for (const r of rows) {
+    await insertHandler(r);
+    imported++;
+  }
+
+  return { imported };
 };

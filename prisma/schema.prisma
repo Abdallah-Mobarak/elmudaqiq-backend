@@ -63,9 +63,8 @@ model Region {
   city   City   @relation(fields: [cityId], references: [id])
   cityId Int
 
-  subscribers Subscriber[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model SystemSettings {
@@ -166,24 +165,6 @@ model FileStage {
   updatedAt DateTime @updatedAt
 }
 
-model ReviewObjective {
-  id                   Int     @id @default(autoincrement())
-  objectiveCode        String?
-  objectiveDescription String?
-  objectiveCategory    String?
-  relatedProcedures    String?
-  expectedOutput       String?
-  risks                String?
-  riskLevel            String?
-  controlMeasures      String?
-  indicators           String?
-  referenceStandards   String?
-  notes                String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 model ReviewObjectiveStage {
   id                          Int     @id @default(autoincrement())
   codesCollected              String? // "A,B,C"
@@ -250,12 +231,11 @@ model Subscriber {
   // ===============================
   countryId Int
   cityId    Int
-  regionId  Int
+  // regionId  Int
 
   country Country @relation(fields: [countryId], references: [id])
   city    City    @relation(fields: [cityId], references: [id])
-  region  Region  @relation(fields: [regionId], references: [id])
-
+  // region  Region  @relation(fields: [regionId], references: [id])
   cpaWebsite      String?
   commerceWebsite String?
   taxWebsite      String?
@@ -284,10 +264,12 @@ model Subscriber {
   taxCertificateFile String
 
   unifiedNumber     String
-  unifiedNumberFile String
+  // unifiedNumberFile String
 
   commercialActivityFile String
   commercialRegisterDate DateTime
+  commercialExpireDate DateTime?
+
   fiscalYear             DateTime
 
   subscriberEmail String
@@ -445,7 +427,8 @@ model Plan {
   durationMonths Int
   paidFees       Float
   usersLimit     Int
-  clientsLimit   Int
+  fileLimit    Int
+  maxFileSizeMB  Int?
   branchesLimit  Int
   isActive       Boolean @default(true)
 

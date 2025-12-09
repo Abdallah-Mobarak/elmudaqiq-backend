@@ -1,53 +1,21 @@
-const accountGuideService = require("../services/accountGuide.service");
+const service = require("../services/accountGuide.service");
+const path = require("path");
 
 module.exports = {
 
   create: async (req, res, next) => {
     try {
-      const data = await accountGuideService.create(req.body);
-      res.json(data);
-    } catch (err) {
-      next(err);
-    }
-  },
-
-    getAll: async (req, res, next) => {
-    try {
-      const {
-        page,
-        limit,
-        search,
-        level,
-        accountNumber,
-        accountName,
-        code,
-        sortBy,
-        sortOrder
-      } = req.query;
-
-      const result = await accountGuideService.getAll({
-        page,
-        limit,
-        search,
-        level,
-        accountNumber,
-        accountName,
-        code,
-        sortBy,
-        sortOrder
-      });
-
+      const result = await service.create(req.body);
       res.json(result);
     } catch (err) {
       next(err);
     }
   },
-
-  getOne: async (req, res, next) => {
+ 
+  getAll: async (req, res, next) => {
     try {
-      const { id } = req.params;
-      const item = await accountGuideService.getOne(id);
-      res.json(item);
+      const result = await service.getAll(req.query);
+      res.json(result);
     } catch (err) {
       next(err);
     }
@@ -55,9 +23,8 @@ module.exports = {
 
   update: async (req, res, next) => {
     try {
-      const { id } = req.params;
-      const data = await accountGuideService.update(id, req.body);
-      res.json(data);
+      const result = await service.update(req.params.id, req.body);
+      res.json(result);
     } catch (err) {
       next(err);
     }
@@ -65,79 +32,39 @@ module.exports = {
 
   delete: async (req, res, next) => {
     try {
-      const { id } = req.params;
-      const result = await accountGuideService.delete(id);
+      const result = await service.delete(req.params.id);
       res.json(result);
     } catch (err) {
       next(err);
     }
   },
-
 
   importExcel: async (req, res, next) => {
     try {
-      if (!req.file) {
-        throw { customMessage: "Excel file is required", status: 400 };
-      }
-
-      const result = await accountGuideService.importExcel(req.file);
+      const result = await service.importExcel(req.file);
       res.json(result);
-
     } catch (err) {
       next(err);
     }
   },
-exportPDF: async (req, res, next) => {
-  try {
-    const { filePath, stream } = await accountGuideService.exportPDF(req.query);
 
-    stream.on("finish", () => {
-      return res.download(filePath);
-    });
-
-    stream.on("error", (err) => {
+  exportExcel: async (req, res, next) => {
+    try {
+      const { filePath } = await service.exportExcel(req.query);
+      const absolutePath = path.resolve(filePath);
+      return res.download(absolutePath);
+    } catch (err) {
       next(err);
-    });
+    }
+  },
 
-  } catch (err) {
-    next(err);
+  exportPDF: async (req, res, next) => {
+    try {
+      const { filePath, stream } = await service.exportPDF(req.query);
+      stream.on("finish", () => res.download(filePath));
+    } catch (err) {
+      next(err);
+    }
   }
-},
-exportOnePDF: async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    const { filePath, stream } = await accountGuideService.exportPDF({ id });
-
-    stream.on("finish", () => {
-      return res.download(filePath);
-    });
-
-    stream.on("error", (err) => next(err));
-
-  } catch (err) {
-    next(err);
-  }
-},
-
-exportExcel: async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    const { filePath } = await accountGuideService.exportExcel(
-      { ...req.query, id: undefined }, // <-- مهم جدًا
-      id
-    );
-
-    return res.download(filePath);
-  } catch (err) {
-    next(err);
-  }
-},
-
-
-
-
-
 
 };

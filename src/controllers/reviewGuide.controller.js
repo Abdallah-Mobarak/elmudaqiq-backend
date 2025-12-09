@@ -1,136 +1,74 @@
-const reviewGuideService = require("../services/reviewGuide.service");
+const service = require("../services/reviewGuide.service");
 
 module.exports = {
 
-  // ---------------- CREATE ---------------- //
   create: async (req, res, next) => {
     try {
-      const data = await reviewGuideService.create(req.body);
-      res.json(data);
+      const result = await service.create(req.body);
+      res.json(result);
     } catch (err) {
       next(err);
     }
   },
 
-  // ---------------- GET ALL ---------------- //
   getAll: async (req, res, next) => {
     try {
-      const {
-        page,
-        limit,
-        search,
-        level,
-        number,
-        statement,
-        responsiblePerson
-      } = req.query;
-
-      const data = await reviewGuideService.getAll({
-        page,
-        limit,
-        search,
-        level,
-        number,
-        statement,
-        responsiblePerson
-      });
-
-      res.json(data);
+      const result = await service.getAll(req.query);
+      res.json(result);
     } catch (err) {
       next(err);
     }
   },
 
-  // ---------------- GET ONE ---------------- //
   getOne: async (req, res, next) => {
     try {
-      const { id } = req.params;
-      const item = await reviewGuideService.getOne(id);
-      res.json(item);
+      const result = await service.getOne(req.params.id);
+      res.json(result);
     } catch (err) {
       next(err);
     }
   },
 
-  // ---------------- UPDATE ---------------- //
   update: async (req, res, next) => {
     try {
-      const { id } = req.params;
-      const data = await reviewGuideService.update(id, req.body);
-      res.json(data);
+      const result = await service.update(req.params.id, req.body);
+      res.json(result);
     } catch (err) {
       next(err);
     }
   },
 
-  // ---------------- DELETE ---------------- //
   delete: async (req, res, next) => {
     try {
-      const { id } = req.params;
-      const result = await reviewGuideService.delete(id);
+      const result = await service.delete(req.params.id);
       res.json(result);
     } catch (err) {
       next(err);
     }
   },
 
-  // ---------------- IMPORT EXCEL ---------------- //
   importExcel: async (req, res, next) => {
     try {
-      if (!req.file) {
-        throw { customMessage: "Excel file is required", status: 400 };
-      }
-
-      const result = await reviewGuideService.importExcel(req.file);
+      const result = await service.importExcel(req.file);
       res.json(result);
     } catch (err) {
       next(err);
     }
   },
 
-  // ---------------- EXPORT EXCEL (ALL) ---------------- //
   exportExcel: async (req, res, next) => {
     try {
-      const { filePath } = await reviewGuideService.exportExcel(req.query, null);
+      const { filePath } = await service.exportExcel(req.query);
       res.download(filePath);
     } catch (err) {
       next(err);
     }
   },
 
-  // ---------------- EXPORT EXCEL (ONE) ---------------- //
-  exportOneExcel: async (req, res, next) => {
-    try {
-      const { id } = req.params;
-      const { filePath } = await reviewGuideService.exportExcel(req.query, id);
-      res.download(filePath);
-    } catch (err) {
-      next(err);
-    }
-  },
-
-  // ---------------- EXPORT PDF (ALL) ---------------- //
   exportPDF: async (req, res, next) => {
     try {
-      const { filePath, stream } = await reviewGuideService.exportPDF(req.query);
-
+      const { filePath, stream } = await service.exportPDF(req.query);
       stream.on("finish", () => res.download(filePath));
-      stream.on("error", (err) => next(err));
-
-    } catch (err) {
-      next(err);
-    }
-  },
-
-  // ---------------- EXPORT PDF (ONE) ---------------- //
-  exportOnePDF: async (req, res, next) => {
-    try {
-      const { id } = req.params;
-      const { filePath, stream } = await reviewGuideService.exportPDF({ id });
-
-      stream.on("finish", () => res.download(filePath));
-      stream.on("error", (err) => next(err));
-
     } catch (err) {
       next(err);
     }

@@ -13,7 +13,8 @@ module.exports = {
         durationMonths: Number(data.durationMonths),
         paidFees: Number(data.paidFees),
         usersLimit: Number(data.usersLimit),
-        clientsLimit: Number(data.clientsLimit),
+        fileLimit: Number(data.fileLimit),
+        maxFileSizeMB: data.maxFileSizeMB ? Number(data.maxFileSizeMB) : null,
         branchesLimit: Number(data.branchesLimit),
       },
     });
@@ -58,7 +59,8 @@ module.exports = {
         durationMonths: Number(data.durationMonths),
         paidFees: Number(data.paidFees),
         usersLimit: Number(data.usersLimit),
-        clientsLimit: Number(data.clientsLimit),
+        fileLimit: Number(data.fileLimit),
+        maxFileSizeMB: data.maxFileSizeMB ? Number(data.maxFileSizeMB) : null,
         branchesLimit: Number(data.branchesLimit),
       },
     });

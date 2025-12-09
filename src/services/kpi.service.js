@@ -278,12 +278,12 @@ module.exports = {
 
   getYearlyProfitKPI: async ({ year }) => {
 
-  const safeYear = Number(year); // ✅ تحويل آمن لرقم
+  const safeYear = Number(year); //  تحويل آمن لرقم
 
   const startDate = new Date(safeYear, 0, 1);       // 1 Jan
   const endDate   = new Date(safeYear + 1, 0, 1);   // 1 Jan السنة اللي بعدها
 
-  // ✅ إجمالي أرباح السنة
+  //  إجمالي أرباح السنة
   const totalIncomeResult = await prisma.payment.aggregate({
     _sum: { amount: true },
     where: {
@@ -297,7 +297,7 @@ module.exports = {
 
   const totalIncome = totalIncomeResult._sum.amount || 0;
 
-  // ✅ أرباح كل شهر داخل السنة
+  //  أرباح كل شهر داخل السنة
   const monthly = [];
 
   for (let month = 0; month < 12; month++) {
@@ -328,7 +328,7 @@ module.exports = {
   };
   },
 
-getAllYearsMonthlyProfitKPI: async () => {
+   getAllYearsMonthlyProfitKPI: async () => {
 
   // ✅ إجمالي الأرباح عبر كل السنين
   const totalResult = await prisma.payment.aggregate({
@@ -366,14 +366,7 @@ getAllYearsMonthlyProfitKPI: async () => {
       total
     }))
   };
-}
-
-
-
-
-
-
-
+  }
 
 
 };

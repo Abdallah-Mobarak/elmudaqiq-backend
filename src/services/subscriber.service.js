@@ -1,6 +1,11 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
+
+
+const exportExcelUtil = require("../utils/fileHandlers/exportExcel");
+const exportPDFUtil = require("../utils/fileHandlers/exportPDF");
+
 // ===============================
 // Utils
 // ===============================
@@ -29,16 +34,39 @@ const generateUniqueSubdomain = async (name) => {
   }
 };
 
+
+function buildIdFilter(id) {
+  if (!id) return null;
+
+  if (typeof id === "string" && id.includes(",")) {
+    return {
+      in: id
+        .split(",")
+        .map(n => Number(n.trim()))
+        .filter(n => !isNaN(n)),
+    };
+  }
+
+  const single = Number(id);
+  if (!isNaN(single)) return single;
+
+  return null;
+}
+
+
+
+
+
 const getFile = (files, name) => files?.[name]?.[0]?.path || null;
 
 // ===============================
-// Add Subscriber (✅ WITH PLAN - NO PAYMENT)
+// Add Subscriber ( WITH PLAN - NO PAYMENT)
 // ===============================
 exports.create = async (data, files) => {
   const requiredFields = [
     "countryId",
     "cityId",
-    "regionId",
+   // "regionId",
     "licenseType",
     "licenseNumber",
     "licenseDate",
@@ -50,10 +78,11 @@ exports.create = async (data, files) => {
     "taxNumber",
     "unifiedNumber",
     "commercialRegisterDate",
+    "commercialExpireDate",
     "fiscalYear",
     "subscriberEmail",
     "primaryMobile",
-    "planId" // ✅ REQUIRED
+    "planId" //  REQUIRED
   ];
 
   for (const field of requiredFields) {
@@ -71,7 +100,7 @@ exports.create = async (data, files) => {
   }
 
   // ===============================
-  // ✅ GET PLAN & CALCULATE END DATE
+  //  GET PLAN & CALCULATE END DATE
   // ===============================
   const plan = await prisma.plan.findUnique({
     where: { id: Number(data.planId) }
@@ -94,9 +123,14 @@ exports.create = async (data, files) => {
 
   return prisma.subscriber.create({
     data: {
-      countryId: Number(data.countryId),
-      cityId: Number(data.cityId),
-      regionId: Number(data.regionId),
+      country: {
+  connect: { id: Number(data.countryId) },
+},
+city: {
+  connect: { id: Number(data.cityId) },
+},
+
+
 
       licenseType: data.licenseType,
       licenseNumber: data.licenseNumber,
@@ -116,10 +150,14 @@ exports.create = async (data, files) => {
       taxCertificateFile: getFile(files, "taxCertificateFile"),
 
       unifiedNumber: data.unifiedNumber,
-      unifiedNumberFile: getFile(files, "unifiedNumberFile"),
+      // unifiedNumberFile: getFile(files, "unifiedNumberFile"),
 
       commercialActivityFile: getFile(files, "commercialActivityFile"),
       commercialRegisterDate: new Date(data.commercialRegisterDate),
+      commercialExpireDate: data.commercialExpireDate
+      ? new Date(data.commercialExpireDate)
+      : null,
+
       fiscalYear: new Date(data.fiscalYear),
 
       subscriberEmail: data.subscriberEmail,
@@ -130,8 +168,12 @@ exports.create = async (data, files) => {
         ? new Date(data.subscriptionDate)
         : null,
 
-      // ✅ PLAN ONLY (NO PAYMENT)
-      planId: Number(data.planId),
+      // PLAN ONLY (NO PAYMENT)
+plan: {
+  connect: {
+    id: Number(data.planId),
+  },
+},
       subscriptionStartDate: data.subscriptionStartDate
         ? new Date(data.subscriptionStartDate)
         : null,
@@ -149,7 +191,7 @@ exports.create = async (data, files) => {
 };
 
 // ===============================
-// View Subscribers + Filters (✅ WITH PLAN)
+// View Subscribers + Filters ( WITH PLAN)
 // ===============================
 exports.getAll = async (query) => {
   const {
@@ -158,7 +200,7 @@ exports.getAll = async (query) => {
     status,
     countryId,
     cityId,
-    regionId,
+    // regionId,
   } = query;
 
   const where = {};
@@ -166,7 +208,6 @@ exports.getAll = async (query) => {
   if (status) where.status = { in: status.split(",") };
   if (countryId) where.countryId = Number(countryId);
   if (cityId) where.cityId = Number(cityId);
-  if (regionId) where.regionId = Number(regionId);
 
   const skip = (Number(page) - 1) * Number(limit);
 
@@ -180,9 +221,8 @@ exports.getAll = async (query) => {
       include: {
         country: { select: { id: true, name: true } },
         city: { select: { id: true, name: true } },
-        region: { select: { id: true, name: true } },
 
-        // ✅ INCLUDE PLAN
+        // INCLUDE PLAN
         plan: {
           select: {
             id: true,
@@ -190,7 +230,8 @@ exports.getAll = async (query) => {
             durationMonths: true,
             paidFees: true,
             usersLimit: true,
-            clientsLimit: true,
+            fileLimit: true,
+            maxFileSizeMB:true,
             branchesLimit: true
           }
         }
@@ -237,8 +278,8 @@ exports.update = async (id, data, files) => {
   if (getFile("taxCertificateFile"))
     updateData.taxCertificateFile = getFile("taxCertificateFile");
 
-  if (getFile("unifiedNumberFile"))
-    updateData.unifiedNumberFile = getFile("unifiedNumberFile");
+  // if (getFile("unifiedNumberFile"))
+  //   updateData.unifiedNumberFile = getFile("unifiedNumberFile");
 
   if (getFile("commercialActivityFile"))
     updateData.commercialActivityFile = getFile("commercialActivityFile");
@@ -249,11 +290,11 @@ exports.update = async (id, data, files) => {
   return prisma.subscriber.update({
     where: { id: Number(id) },
     data: updateData,
-  });
+  }); 
 };
 
 // ===============================
-// Change Status (بدل Delete)
+// Change Status ( Delete)
 // ===============================
 exports.changeStatus = async (id, status) => {
   return prisma.subscriber.update({
@@ -261,3 +302,153 @@ exports.changeStatus = async (id, status) => {
     data: { status },
   });
 };
+
+
+// ===============================
+// Export Subscribers Excel
+// ===============================
+// ===============================
+// Export Subscribers Excel (FULL DATA + FILTERS + MULTI ID)
+// ===============================
+exports.exportExcel = async (query = {}) => {
+  const { status, countryId, cityId, id } = query;
+
+  const where = {};
+
+  if (status) where.status = { in: status.split(",") };
+  if (countryId) where.countryId = Number(countryId);
+  if (cityId) where.cityId = Number(cityId);
+
+  const idFilter = buildIdFilter(id);
+  if (idFilter) where.id = idFilter;
+
+  const data = await prisma.subscriber.findMany({
+    where,
+    include: {
+      country: { select: { name: true } },
+      city: { select: { name: true } },
+      plan: {
+        select: {
+          name: true,
+          durationMonths: true,
+          paidFees: true,
+          usersLimit: true,
+          fileLimit: true,
+          maxFileSizeMB: true,
+          branchesLimit: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return exportExcelUtil({
+    filePrefix: "subscribers_full",
+    headers: [
+      "ID",
+      "License Name",
+      "License Number",
+      "License Type",
+      "Unified Number",
+      "Owners Names",
+      "Commercial Register Number",
+      "Tax Number",
+      "Email",
+      "Mobile",
+      "Country",
+      "City",
+      "Facility Link",
+      "Language",
+      "Currency",
+      "Status",
+      "Subscription Start",
+      "Subscription End",
+      "Plan Name",
+      "Plan Duration",
+      "Paid Fees",
+      "Users Limit",
+      "File Limit",
+      "Max File Size",
+      "Branches Limit",
+      "Created At"
+    ],
+
+    rows: data.map(s => [
+      s.id,
+      s.licenseName,
+      s.licenseNumber,
+      s.licenseType,
+      s.unifiedNumber,
+      s.ownersNames,
+      s.commercialRegisterNumber,
+      s.taxNumber,
+      s.subscriberEmail,
+      s.primaryMobile,
+      s.country?.name,
+      s.city?.name,
+      s.facilityLink,
+      s.language,
+      s.currency,
+      s.status,
+      s.subscriptionStartDate,
+      s.subscriptionEndDate,
+      s.plan?.name,
+      s.plan?.durationMonths,
+      s.plan?.paidFees,
+      s.plan?.usersLimit,
+      s.plan?.fileLimit,
+      s.plan?.maxFileSizeMB,
+      s.plan?.branchesLimit,
+      s.createdAt
+    ])
+  });
+};
+
+
+// ===============================
+// Export Subscribers PDF
+// ===============================
+// ===============================
+// Export Subscribers PDF (FULL + FILTERS + MULTI ID)
+// ===============================
+exports.exportPDF = async (query = {}) => {
+  const { status, id } = query;
+
+  const where = {};
+
+  if (status) where.status = { in: status.split(",") };
+
+  const idFilter = buildIdFilter(id);
+  if (idFilter) where.id = idFilter;
+
+  const data = await prisma.subscriber.findMany({
+    where,
+    orderBy: { createdAt: "desc" }
+  });
+
+  return exportPDFUtil({
+    title: "Subscribers Full Report",
+    filePrefix: "subscribers_full",
+
+    headers: [
+      { label: "Name", width: 130 },
+      { label: "License No", width: 90 },
+      { label: "Unified No", width: 90 },
+      { label: "Mobile", width: 110 },
+      { label: "Status", width: 70 },
+      { label: "Start", width: 90 },
+      { label: "End", width: 90 }
+    ],
+
+    rows: data.map(s => [
+      s.licenseName,
+      s.licenseNumber,
+      s.unifiedNumber,
+      s.primaryMobile,
+      s.status,
+      s.subscriptionStartDate,
+      s.subscriptionEndDate
+    ])
+  });
+};
+

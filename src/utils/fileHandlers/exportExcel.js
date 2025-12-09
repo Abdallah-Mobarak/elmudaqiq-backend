@@ -1,36 +1,24 @@
-// src/utils/fileHandlers/exportExcel.js
-
 const ExcelJS = require("exceljs");
+const fs = require("fs");
 
-/**
- * exportExcel
- * @param {Object} options
- * @param {Array<{ key: string, header?: string, label?: string, width?: number }>} options.columns
- * @param {Array<Object>} options.data
- * @param {string} [options.sheetName]
- * @returns {Promise<Buffer>} Excel file as Buffer
- */
-const exportExcel = async ({ columns, data, sheetName = "Sheet1" }) => {
+
+module.exports = async ({ headers, rows, filePrefix }) => {
+
+  if (!rows.length) {
+    throw new Error("No data to export");
+  }
+
   const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet(sheetName);
+  const sheet = workbook.addWorksheet("Export");
 
-  // إعداد الأعمدة من الـ config
-  worksheet.columns = columns.map((col) => ({
-    header: col.header || col.label || col.key,
-    key: col.key,
-    width: col.width || 20,
-  }));
+  sheet.addRow(headers);
+  rows.forEach(row => sheet.addRow(row));
 
-  // إضافة الصفوف من الـ data (كل object بيمثل صف)
-  data.forEach((row) => {
-    worksheet.addRow(row);
-  });
+  if (!fs.existsSync("exports")) fs.mkdirSync("exports");
 
-  // نرجّع Buffer علشان الـ controller أو الـ service يتصرف فيه
-  const buffer = await workbook.xlsx.writeBuffer();
-  return buffer;
-};
+  const filePath = `exports/${filePrefix}_${Date.now()}.xlsx`;
 
-module.exports = {
-  exportExcel,
+  await workbook.xlsx.writeFile(filePath);
+
+  return { filePath };
 };

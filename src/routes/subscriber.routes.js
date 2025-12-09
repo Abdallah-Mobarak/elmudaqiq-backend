@@ -16,7 +16,6 @@ router.post(
     { name: "articlesOfAssociationFile", maxCount: 1 },
     { name: "commercialRegisterFile", maxCount: 1 },
     { name: "taxCertificateFile", maxCount: 1 },
-    { name: "unifiedNumberFile", maxCount: 1 },
     { name: "commercialActivityFile", maxCount: 1 },
     { name: "factoryLogo", maxCount: 1 },
   ]),
@@ -42,7 +41,6 @@ router.patch(
   adminMiddleware,
   upload.fields([
     { name: "taxCertificateFile", maxCount: 1 },
-    { name: "unifiedNumberFile", maxCount: 1 },
     { name: "commercialActivityFile", maxCount: 1 },
     { name: "factoryLogo", maxCount: 1 },
   ]),
@@ -58,5 +56,25 @@ router.patch(
   adminMiddleware,
   subscriberController.changeStatus
 );
+
+
+// ===============================
+// Export Subscribers Excel & PDF
+// ===============================
+router.get(
+  "/export/excel",
+  authMiddleware,
+  adminMiddleware,
+  subscriberController.exportExcel
+);
+
+router.get(
+  "/export/pdf",
+  authMiddleware,
+  adminMiddleware,
+  subscriberController.exportPDF
+);
+
+
 
 module.exports = router;

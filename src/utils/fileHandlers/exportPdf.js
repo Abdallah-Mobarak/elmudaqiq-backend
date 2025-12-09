@@ -1,63 +1,67 @@
 const PDFDocument = require("pdfkit");
+const fs = require("fs");
 
-/**
- * exportPDF
- * @param {Object} options
- * @param {string} options.title - عنوان التقرير
- * @param {Array<{ key: string, label: string, width?: number }>} options.columns
- * @param {Array<Object>} options.data
- * @returns {Promise<Buffer>} PDF file as Buffer
- */
+/*
+  Generic PDF Export
+  - title: document title
+  - headers: table headers
+  - rows: table rows
+  - filePrefix: output file prefix
+*/
 
-const exportPDF = ({ title, columns, data }) => {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({
-      margin: 40,
-      size: "A4",
-    });
+module.exports = async ({ title, headers, rows, filePrefix }) => {
+  const doc = new PDFDocument({ size: "A4", margin: 40 });
 
-    const chunks = [];
-    doc.on("data", (chunk) => chunks.push(chunk));
-    doc.on("end", () => {
-      const pdfBuffer = Buffer.concat(chunks);
-      resolve(pdfBuffer);
-    });
-    doc.on("error", (err) => reject(err));
+  if (!fs.existsSync("exports")) fs.mkdirSync("exports");
 
-    // العنوان
-    doc.fontSize(18).text(title, { align: "center" });
-    doc.moveDown(1.5);
+  const filePath = `exports/${filePrefix}_${Date.now()}.pdf`;
+  const stream = fs.createWriteStream(filePath);
+  doc.pipe(stream);
 
-    // الهيدر (أسماء الأعمدة)
-    doc.fontSize(12).font("Helvetica-Bold");
-    columns.forEach((col) => {
-      doc.text(col.label || col.key, {
-        continued: true,
-        width: col.width || 100,
-      });
-    });
-    doc.text(""); // move to next line
-    doc.moveDown(0.5);
-    doc.moveTo(doc.x, doc.y).lineTo(550, doc.y).stroke();
-    doc.moveDown(0.5);
+  const drawHeader = () => {
+    doc.font("Helvetica-Bold").fontSize(20).text("AL MUDAQIQ", { align: "left" });
+    doc.moveDown(0.2);
+    doc.font("Helvetica").fontSize(14).text(title, { align: "center" });
+    doc.moveDown(1);
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+    doc.moveDown(1);
+  };
 
-    // الصفوف
-    doc.fontSize(10).font("Helvetica");
-    data.forEach((row) => {
-      columns.forEach((col) => {
-        const value = row[col.key] != null ? String(row[col.key]) : "";
-        doc.text(value, {
-          continued: true,
-          width: col.width || 100,
-        });
-      });
-      doc.text(""); // next line
-    });
+  drawHeader();
+  doc.on("pageAdded", drawHeader);
 
-    doc.end();
+  doc.font("Helvetica-Bold").fontSize(10);
+  let y = doc.y;
+  let x = 40;
+
+  headers.forEach((h) => {
+    doc.rect(x, y, h.width, 20).stroke();
+    doc.text(h.label, x + 5, y + 6, { width: h.width - 10 });
+    x += h.width;
   });
-};
 
-module.exports = {
-  exportPDF,
+  y += 20;
+  doc.font("Helvetica").fontSize(9);
+
+  rows.forEach((row) => {
+    let xRow = 40;
+
+    if (y > 750) {
+      doc.addPage();
+      y = doc.y;
+    }
+
+    row.forEach((cell, i) => {
+      doc.rect(xRow, y, headers[i].width, 18).stroke();
+      doc.text(cell ?? "", xRow + 5, y + 5, {
+        width: headers[i].width - 10,
+      });
+      xRow += headers[i].width;
+    });
+
+    y += 18;
+  });
+
+  doc.end();
+  return { filePath, stream };
 };

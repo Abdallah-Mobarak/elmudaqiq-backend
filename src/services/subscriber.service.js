@@ -1,8 +1,7 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-
-
+const saveUploadedFile = require("../utils/saveUploadedFile");
 const exportExcelUtil = require("../utils/fileHandlers/exportExcel");
 const exportPDFUtil = require("../utils/fileHandlers/exportPDF");
 
@@ -52,10 +51,6 @@ function buildIdFilter(id) {
 
   return null;
 }
-
-
-
-
 
 const getFile = (files, name) => files?.[name]?.[0]?.path || null;
 
@@ -121,16 +116,14 @@ exports.create = async (data, files) => {
 
   const subdomain = await generateUniqueSubdomain(data.licenseName);
 
-  return prisma.subscriber.create({
+  const subscriber = await prisma.subscriber.create({
     data: {
       country: {
-  connect: { id: Number(data.countryId) },
-},
-city: {
-  connect: { id: Number(data.cityId) },
-},
-
-
+        connect: { id: Number(data.countryId) },
+      },
+      city: {
+        connect: { id: Number(data.cityId) },
+      },
 
       licenseType: data.licenseType,
       licenseNumber: data.licenseNumber,
@@ -150,13 +143,12 @@ city: {
       taxCertificateFile: getFile(files, "taxCertificateFile"),
 
       unifiedNumber: data.unifiedNumber,
-      // unifiedNumberFile: getFile(files, "unifiedNumberFile"),
 
       commercialActivityFile: getFile(files, "commercialActivityFile"),
       commercialRegisterDate: new Date(data.commercialRegisterDate),
       commercialExpireDate: data.commercialExpireDate
-      ? new Date(data.commercialExpireDate)
-      : null,
+        ? new Date(data.commercialExpireDate)
+        : null,
 
       fiscalYear: new Date(data.fiscalYear),
 
@@ -164,16 +156,13 @@ city: {
       primaryMobile: data.primaryMobile,
 
       status: "PENDING",
-      subscriptionDate: data.subscriptionDate
-        ? new Date(data.subscriptionDate)
-        : null,
 
-      // PLAN ONLY (NO PAYMENT)
-plan: {
-  connect: {
-    id: Number(data.planId),
-  },
-},
+      plan: {
+        connect: {
+          id: Number(data.planId),
+        },
+      },
+
       subscriptionStartDate: data.subscriptionStartDate
         ? new Date(data.subscriptionStartDate)
         : null,
@@ -188,7 +177,36 @@ plan: {
       subdomain,
     },
   });
+
+  //   uploaded 
+  await saveUploadedFile({
+    file: files?.licenseCertificate?.[0],
+    source: "subscriber",
+  });
+
+  await saveUploadedFile({
+    file: files?.taxCertificateFile?.[0],
+    source: "subscriber",
+  });
+
+  await saveUploadedFile({
+    file: files?.commercialActivityFile?.[0],
+    source: "subscriber",
+  });
+
+  await saveUploadedFile({
+    file: files?.factoryLogo?.[0],
+    source: "subscriber",
+  });
+
+  return subscriber;
 };
+
+
+
+
+
+
 
 // ===============================
 // View Subscribers + Filters ( WITH PLAN)

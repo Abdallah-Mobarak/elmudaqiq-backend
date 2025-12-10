@@ -330,7 +330,7 @@ module.exports = {
 
    getAllYearsMonthlyProfitKPI: async () => {
 
-  // ✅ إجمالي الأرباح عبر كل السنين
+  //  إجمالي الأرباح عبر كل السني
   const totalResult = await prisma.payment.aggregate({
     _sum: { amount: true },
     where: {
@@ -340,7 +340,7 @@ module.exports = {
 
   const totalIncomeAllTime = totalResult._sum.amount || 0;
 
-  // ✅ أرباح كل الشهور (مجمع من كل السنين)
+  //  أرباح كل الشهور (مجمع من كل السنين)
   const payments = await prisma.payment.findMany({
     where: {
       status: "PAID"
@@ -360,7 +360,7 @@ module.exports = {
 
   return {
     type: "ALL_YEARS",
-    totalIncomeAllTime, // ✅ الرقم الكبير فوق الجراف
+    totalIncomeAllTime, //  الرقم الكبير فوق الجراف
     monthly: monthlyTotals.map((total, index) => ({
       month: index + 1,   // 1 → 12
       total

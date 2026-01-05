@@ -3,7 +3,7 @@ const prisma = new PrismaClient();
 
 const importExcelUtil = require("../utils/fileHandlers/importExcel");
 const exportExcelUtil = require("../utils/fileHandlers/exportExcel");
-const exportPDFUtil = require("../utils/fileHandlers/exportPDF");
+const exportPDFUtil = require("../utils/fileHandlers/exportPdf");
 
 // ✅ Helper for Multi ID
 function buildIdFilter(id) {
@@ -122,30 +122,31 @@ module.exports = {
     return importExcelUtil({
       fileBuffer: file,
       rowMapper: (row) => {
-  const scoreWeight = Number(row.getCell(10).value) || null;
-  const severityWeight = Number(row.getCell(12).value) || null;
+        // Excel columns order: Name, Description, Stage, When To Use, Example, Sector, Assertion, Benchmark, Score Weight, Severity Level, Severity Weight, Priority Score, Priority Rating
+        const scoreWeight = Number(row.getCell(9)?.value) || null;
+        const severityWeight = Number(row.getCell(11)?.value) || null;
 
-  let priorityScore = null;
-  if (scoreWeight !== null && severityWeight !== null) {
-    priorityScore = scoreWeight * severityWeight;
-  }
+        let priorityScore = null;
+        if (scoreWeight !== null && severityWeight !== null) {
+          priorityScore = scoreWeight * severityWeight;
+        }
 
-  return {
-    name: row.getCell(2).value?.toString(),
-    shortDescription: row.getCell(3).value?.toString(),
-    suggestedStage: row.getCell(4).value?.toString(),
-    whenToUse: row.getCell(5).value?.toString(),
-    exampleShortForm: row.getCell(6).value?.toString(),
-    sectorTags: row.getCell(7).value?.toString(),
-    assertion: row.getCell(8).value?.toString(),
-    benchmark: row.getCell(9).value?.toString(), 
-    scoreWeight,
-    severityLevel: Number(row.getCell(11).value) || null,
-    severityWeight,
-    priorityScore,
-    priorityRating: row.getCell(13).value?.toString() 
-  };
-},
+        return {
+          name: row.getCell(1)?.value?.toString() || null,
+          shortDescription: row.getCell(2)?.value?.toString() || null,
+          suggestedStage: row.getCell(3)?.value?.toString() || null,
+          whenToUse: row.getCell(4)?.value?.toString() || null,
+          exampleShortForm: row.getCell(5)?.value?.toString() || null,
+          sectorTags: row.getCell(6)?.value?.toString() || null,
+          assertion: row.getCell(7)?.value?.toString() || null,
+          benchmark: row.getCell(8)?.value?.toString() || null,
+          scoreWeight,
+          severityLevel: Number(row.getCell(10)?.value) || null,
+          severityWeight,
+          priorityScore,
+          priorityRating: row.getCell(13)?.value?.toString() || null
+        };
+      },
 
       insertHandler: (row) => prisma.reviewMarkIndex.create({ data: row })
     });

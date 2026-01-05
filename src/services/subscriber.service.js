@@ -3,7 +3,7 @@ const prisma = new PrismaClient();
 
 const saveUploadedFile = require("../utils/saveUploadedFile");
 const exportExcelUtil = require("../utils/fileHandlers/exportExcel");
-const exportPDFUtil = require("../utils/fileHandlers/exportPDF");
+const exportPDFUtil = require("../utils/fileHandlers/exportPdf");
 
 // ===============================
 // Utils
@@ -202,12 +202,6 @@ exports.create = async (data, files) => {
   return subscriber;
 };
 
-
-
-
-
-
-
 // ===============================
 // View Subscribers + Filters ( WITH PLAN)
 // ===============================
@@ -266,6 +260,9 @@ exports.getAll = async (query) => {
 // ===============================
 exports.update = async (id, data, files) => {
   const updateData = {};
+
+  if (data.licenseName !== undefined)
+    updateData.licenseName = data.licenseName;
 
   if (data.taxNumber !== undefined)
     updateData.taxNumber = data.taxNumber;

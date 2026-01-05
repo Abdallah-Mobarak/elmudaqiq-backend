@@ -3,7 +3,7 @@ const prisma = new PrismaClient();
 
 const importExcelUtil = require("../utils/fileHandlers/importExcel");
 const exportExcelUtil = require("../utils/fileHandlers/exportExcel");
-const exportPDFUtil = require("../utils/fileHandlers/exportPDF");
+const exportPDFUtil = require("../utils/fileHandlers/exportPdf");
 
 module.exports = {
 
@@ -116,21 +116,24 @@ module.exports = {
   importExcel: async (file) => {
     return importExcelUtil({
       fileBuffer: file,
-      rowMapper: (row) => ({
-        level: row.getCell(1).value?.toString().trim(),
-        separator: row.getCell(2).value?.toString().trim(),
-        number: row.getCell(3).value?.toString().trim(),
-        statement: row.getCell(4).value?.toString().trim(),
-        purpose: row.getCell(5).value?.toString().trim(),
-        responsiblePerson: row.getCell(6).value?.toString().trim(),
-        datePrepared: row.getCell(7).value ? new Date(row.getCell(7).value) : null,
-        dateReviewed: row.getCell(8).value ? new Date(row.getCell(8).value) : null,
-        conclusion: row.getCell(9).value?.toString().trim(),
-        attachments: row.getCell(10).value?.toString().trim(),
-        notes1: row.getCell(11).value?.toString().trim(),
-        notes2: row.getCell(12).value?.toString().trim(),
-        notes3: row.getCell(13).value?.toString().trim(),
-      }),
+      rowMapper: (row) => {
+        // Excel columns order: ID, Level, Separator, Number, Statement, Purpose, Responsible Person, Date Prepared, Date Reviewed, Conclusion, Attachments, Notes 1, Notes 2, Notes 3
+        return {
+          level: row.getCell(2)?.value?.toString().trim() || null,
+          separator: row.getCell(3)?.value?.toString().trim() || null,
+          number: row.getCell(4)?.value?.toString().trim() || null,
+          statement: row.getCell(5)?.value?.toString().trim() || null,
+          purpose: row.getCell(6)?.value?.toString().trim() || null,
+          responsiblePerson: row.getCell(7)?.value?.toString().trim() || null,
+          datePrepared: row.getCell(8)?.value ? new Date(row.getCell(8).value) : null,
+          dateReviewed: row.getCell(9)?.value ? new Date(row.getCell(9).value) : null,
+          conclusion: row.getCell(10)?.value?.toString().trim() || null,
+          attachments: row.getCell(11)?.value?.toString().trim() || null,
+          notes1: row.getCell(12)?.value?.toString().trim() || null,
+          notes2: row.getCell(13)?.value?.toString().trim() || null,
+          notes3: row.getCell(14)?.value?.toString().trim() || null,
+        };
+      },
       insertHandler: (row) => prisma.reviewGuide.create({ data: row })
     });
   },

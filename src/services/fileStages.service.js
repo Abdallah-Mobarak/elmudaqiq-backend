@@ -3,7 +3,7 @@ const prisma = new PrismaClient();
 
 const importExcelUtil = require("../utils/fileHandlers/importExcel");
 const exportExcelUtil = require("../utils/fileHandlers/exportExcel");
-const exportPDFUtil = require("../utils/fileHandlers/exportPDF");
+const exportPDFUtil = require("../utils/fileHandlers/exportPdf");
 
 
 function buildIdFilter(id) {

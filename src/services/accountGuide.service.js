@@ -249,35 +249,56 @@ getAll: async (filters = {}) => {
       if (rowNumber === 1) return; // Skip header
 
       try {
-        const accountNumber = row.getCell(2)?.value;
+        // Helper to safely extract value from any cell (handling Formulas & RichText)
+        const getVal = (colIndex) => {
+          const val = row.getCell(colIndex).value;
+          if (val && typeof val === 'object') {
+            if (val.result !== undefined) return val.result;
+            if (val.richText) return val.richText.map(t => t.text).join('');
+            if (val.text) return val.text;
+          }
+          return val;
+        };
+
+        const accountNumberVal = getVal(2);
         
         // Validate accountNumber exists and is valid
-        if (!accountNumber && accountNumber !== 0) {
+        if (accountNumberVal === null || accountNumberVal === undefined || String(accountNumberVal).trim() === '') {
           errors.push({
             row: rowNumber,
-            accountNumber: accountNumber || "N/A",
+            accountNumber: "N/A",
             error: "Account Number is required"
           });
           return;
         }
 
-        const accountNum = Number(accountNumber);
+        const accountNum = Number(accountNumberVal);
+
+        if (isNaN(accountNum)) {
+           errors.push({
+            row: rowNumber,
+            accountNumber: String(accountNumberVal),
+            error: "Invalid Account Number format"
+          });
+          return;
+        }
+
         const rowData = {
           rowNumber,
-          level: String(row.getCell(1)?.value || "").trim(),
+          level: String(getVal(1) || "").trim(),
           accountNumber: accountNum,
-          accountName: String(row.getCell(3)?.value || "").trim(),
-          rulesAndRegulations: row.getCell(4)?.value
-            ? String(row.getCell(4).value).trim()
+          accountName: String(getVal(3) || "").trim(),
+          rulesAndRegulations: getVal(4)
+            ? String(getVal(4)).trim()
             : null,
-          disclosureNotes: row.getCell(5)?.value
-            ? String(row.getCell(5).value).trim()
+          disclosureNotes: getVal(5)
+            ? String(getVal(5)).trim()
             : null,
-            code1: row.getCell(6)?.value
-            ? String(row.getCell(6).value).trim()
+            code1: getVal(6)
+            ? String(getVal(6)).trim()
             : null,
-            objectiveCode: row.getCell(7)?.value
-            ? String(row.getCell(7).value).trim()
+            objectiveCode: getVal(7)
+            ? String(getVal(7)).trim()
             : null, 
         
         

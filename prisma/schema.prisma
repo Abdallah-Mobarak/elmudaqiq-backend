@@ -93,24 +93,24 @@ model AuthorityWebsite {
 model AccountGuide {
   id Int @id @default(autoincrement())
 
-  level         String
+  level         String @db.Text
   accountNumber Int
-  accountName   String
+  accountName   String @db.Text
 
-  rulesAndRegulations String?
-  disclosureNotes     String?
+  rulesAndRegulations String? @db.Text
+  disclosureNotes     String? @db.Text
 
-  code1 String?
-  code2 String?
-  code3 String?
-  code4 String?
-  code5 String?
-  code6 String?
-  code7 String?
-  code8 String?
+  code1 String? @db.Text
+  code2 String? @db.Text
+  code3 String? @db.Text
+  code4 String? @db.Text
+  code5 String? @db.Text
+  code6 String? @db.Text
+  code7 String? @db.Text
+  code8 String? @db.Text
 
-  objectiveCode     String?
-  relatedObjectives String?
+  objectiveCode     String? @db.Text
+  relatedObjectives String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

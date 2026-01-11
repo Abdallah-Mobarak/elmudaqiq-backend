@@ -45,7 +45,7 @@ sendOTP: async (email) => {
     data: {
       otp,
       otpExpiresAt: expires
-    }
+    } 
   });
   await sendOTPEmail(email, otp);
   return { message: "OTP sent successfully", otp };

@@ -249,7 +249,7 @@ getAll: async (filters = {}) => {
       if (rowNumber === 1) return; // Skip header
 
       try {
-        const accountNumber = row.getCell(3)?.value;
+        const accountNumber = row.getCell(2)?.value;
         
         // Validate accountNumber exists and is valid
         if (!accountNumber && accountNumber !== 0) {
@@ -264,16 +264,24 @@ getAll: async (filters = {}) => {
         const accountNum = Number(accountNumber);
         const rowData = {
           rowNumber,
-          level: String(row.getCell(2)?.value || "").trim(),
+          level: String(row.getCell(1)?.value || "").trim(),
           accountNumber: accountNum,
-          accountName: String(row.getCell(4)?.value || "").trim(),
-          rulesAndRegulations: row.getCell(5)?.value
+          accountName: String(row.getCell(3)?.value || "").trim(),
+          rulesAndRegulations: row.getCell(4)?.value
+            ? String(row.getCell(4).value).trim()
+            : null,
+          disclosureNotes: row.getCell(5)?.value
             ? String(row.getCell(5).value).trim()
             : null,
-          disclosureNotes: row.getCell(6)?.value
+            code1: row.getCell(6)?.value
             ? String(row.getCell(6).value).trim()
-            : null
-        };
+            : null,
+            objectiveCode: row.getCell(7)?.value
+            ? String(row.getCell(7).value).trim()
+            : null, 
+        
+        
+          };
 
         // Check for duplicates within the file
         if (seenAccountNumbers.has(accountNum)) {
@@ -336,7 +344,10 @@ getAll: async (filters = {}) => {
               accountNumber: rowData.accountNumber,
               accountName: rowData.accountName,
               rulesAndRegulations: rowData.rulesAndRegulations,
-              disclosureNotes: rowData.disclosureNotes
+              disclosureNotes: rowData.disclosureNotes,
+              code1: rowData.code1,
+              objectiveCode: rowData.objectiveCode,
+
             }
           });
           imported++;

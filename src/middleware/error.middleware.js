@@ -34,6 +34,11 @@ module.exports = (err, req, res, next) => {
     return res.status(400).json({ message: err.details ? err.details.map(d => d.message).join(", ") : err.message });
   }
 
+  // Multer file size limit error
+  if (err && err.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({ message: "File size too large. Maximum limit is 5MB." });
+  }
+
   // Default fallback
   return res.status(500).json({
     message: "Internal Server Error",

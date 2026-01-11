@@ -212,7 +212,7 @@ exports.getAll = async (query) => {
     status,
     countryId,
     cityId,
-    // regionId,
+    search,
   } = query;
 
   const where = {};
@@ -220,6 +220,16 @@ exports.getAll = async (query) => {
   if (status) where.status = { in: status.split(",") };
   if (countryId) where.countryId = Number(countryId);
   if (cityId) where.cityId = Number(cityId);
+
+  if (search) {
+    where.OR = [
+      { licenseName: { contains: search,} },
+      { licenseNumber: { contains: search } },
+      { subscriberEmail: { contains: search } },
+      { primaryMobile: { contains: search } },
+      { unifiedNumber: { contains: search } },
+    ];
+  }
 
   const skip = (Number(page) - 1) * Number(limit);
 
@@ -229,24 +239,10 @@ exports.getAll = async (query) => {
       skip,
       take: Number(limit),
       orderBy: { createdAt: "desc" },
-
       include: {
         country: { select: { id: true, name: true } },
         city: { select: { id: true, name: true } },
-
-        // INCLUDE PLAN
-        plan: {
-          select: {
-            id: true,
-            name: true,
-            durationMonths: true,
-            paidFees: true,
-            usersLimit: true,
-            fileLimit: true,
-            maxFileSizeMB:true,
-            branchesLimit: true
-          }
-        }
+        plan: true,
       },
     }),
     prisma.subscriber.count({ where }),
@@ -418,7 +414,6 @@ exports.exportExcel = async (query = {}) => {
     ])
   });
 };
-
 
 // ===============================
 // Export Subscribers PDF

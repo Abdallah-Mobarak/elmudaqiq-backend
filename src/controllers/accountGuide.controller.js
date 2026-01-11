@@ -28,7 +28,7 @@ module.exports = {
     } catch (err) {
       next(err);
     }
-  },
+  }, 
 
   delete: async (req, res, next) => {
     try {

@@ -47,10 +47,10 @@ module.exports = {
     const where = {};
 
     if (suggestedStage)
-      where.suggestedStage = { contains: suggestedStage, mode: "insensitive" };
+      where.suggestedStage = { contains: suggestedStage,  };
 
     if (sectorTags)
-      where.sectorTags = { contains: sectorTags, mode: "insensitive" };
+      where.sectorTags = { contains: sectorTags,  };
 
     if (severityLevel)
       where.severityLevel = Number(severityLevel);
@@ -58,10 +58,10 @@ module.exports = {
     if (search) {
       const s = String(search);
       where.OR = [
-        { name: { contains: s, mode: "insensitive" } },
-        { shortDescription: { contains: s, mode: "insensitive" } },
-        { assertion: { contains: s, mode: "insensitive" } },
-        { benchmark: { contains: s, mode: "insensitive" } }
+        { name: { contains: s, } },
+        { shortDescription: { contains: s,  } },
+        { assertion: { contains: s, } },
+        { benchmark: { contains: s, } }
       ];
     }
 

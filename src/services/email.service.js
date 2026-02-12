@@ -8,7 +8,12 @@ const transporter = nodemailer.createTransport({
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS
-  }
+  },
+  connectionTimeout: 5000,
+  greetingTimeout: 5000,
+  socketTimeout: 5000
+
+
 }); 
 
 // Function to send OTP via email
@@ -27,5 +32,30 @@ module.exports.sendOTPEmail = async (email, otp) => {
   } catch (error) {
     console.log("Email Error:", error);
     throw new Error("Failed to send OTP email");
+  }
+};
+
+// Function to send Welcome Email to new Subscriber
+module.exports.sendSubscriberWelcomeEmail = async ({ to, loginUrl, email, tempPassword }) => {
+  try {
+    await transporter.sendMail({
+      from: process.env.FROM_EMAIL,
+      to: to,
+      subject: "Welcome to Al-Mudaqiq - Your Account Details",
+      html: `
+        <h1>Welcome to Al-Mudaqiq</h1>
+        <p>Your subscription has been created successfully.</p>
+        <p><strong>Login URL:</strong> <a href="${loginUrl}">${loginUrl}</a></p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Temporary Password:</strong> ${tempPassword}</p>
+        <br>
+        <p>Please login and change your password immediately.</p>
+      `
+    });
+    return { message: "Welcome email sent successfully" };
+  } catch (error) {
+    console.log("Email Error:", error);
+    // Throw error so the caller knows it failed
+    throw error;
   }
 };

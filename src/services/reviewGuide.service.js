@@ -38,26 +38,26 @@ module.exports = {
     const where = {};
 
     if (id) where.id = Number(id);
-    if (level) where.level = { contains: level, mode: "insensitive" };
-    if (number) where.number = { contains: number, mode: "insensitive" };
-    if (statement) where.statement = { contains: statement, mode: "insensitive" };
+    if (level) where.level = { contains: level};
+    if (number) where.number = { contains: number,};
+    if (statement) where.statement = { contains: statement,};
     if (responsiblePerson) {
-      where.responsiblePerson = { contains: responsiblePerson, mode: "insensitive" };
+      where.responsiblePerson = { contains: responsiblePerson,};
     }
 
     if (search) {
       const s = String(search);
       where.OR = [
-        { level: { contains: s, mode: "insensitive" } },
-        { number: { contains: s, mode: "insensitive" } },
-        { statement: { contains: s, mode: "insensitive" } },
-        { purpose: { contains: s, mode: "insensitive" } },
-        { responsiblePerson: { contains: s, mode: "insensitive" } },
-        { conclusion: { contains: s, mode: "insensitive" } },
-        { attachments: { contains: s, mode: "insensitive" } },
-        { notes1: { contains: s, mode: "insensitive" } },
-        { notes2: { contains: s, mode: "insensitive" } },
-        { notes3: { contains: s, mode: "insensitive" } },
+        { level: { contains: s,} },
+        { number: { contains: s} },
+        { statement: { contains: s,  } },
+        { purpose: { contains: s, } },
+        { responsiblePerson: { contains: s,} },
+        { conclusion: { contains: s,  } },
+        { attachments: { contains: s,   } },
+        { notes1: { contains: s,  } },
+        { notes2: { contains: s,  } },
+        { notes3: { contains: s,  } },
       ];
     }
 

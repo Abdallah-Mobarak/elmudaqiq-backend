@@ -9,19 +9,24 @@ datasource db {
 
 model Role {
   id    Int    @id @default(autoincrement())
-  name  String
+  name  String @unique
   users User[]
 }
 
 model User {
-  id           Int       @id @default(autoincrement())
-  fullName     String
-  email        String    @unique
-  password     String
-  phone        String?
-  status       String    @default("active")
-  roleId       Int
-  Role         Role      @relation(fields: [roleId], references: [id])
+  id       Int     @id @default(autoincrement())
+  fullName String
+  email    String
+  password String
+  phone    String?
+  status   String  @default("active")
+
+  roleId Int
+  Role   Role @relation(fields: [roleId], references: [id])
+
+  subscriberId Int?
+  subscriber   Subscriber? @relation(fields: [subscriberId], references: [id])
+
   otp          String?
   otpExpiresAt DateTime?
 
@@ -29,6 +34,8 @@ model User {
   updatedAt DateTime @updatedAt
 
   activityLogs ActivityLog[]
+
+  @@unique([email, subscriberId])
 }
 
 model Country {
@@ -233,8 +240,8 @@ model Subscriber {
   cityId    Int
   // regionId  Int
 
-  country Country @relation(fields: [countryId], references: [id])
-  city    City    @relation(fields: [cityId], references: [id])
+  country         Country @relation(fields: [countryId], references: [id])
+  city            City    @relation(fields: [cityId], references: [id])
   // region  Region  @relation(fields: [regionId], references: [id])
   cpaWebsite      String?
   commerceWebsite String?
@@ -263,14 +270,14 @@ model Subscriber {
   taxNumber          String
   taxCertificateFile String
 
-  unifiedNumber     String
+  unifiedNumber String
   // unifiedNumberFile String
 
   commercialActivityFile String
   commercialRegisterDate DateTime
-  commercialExpireDate DateTime?
+  commercialExpireDate   DateTime?
 
-  fiscalYear             DateTime
+  fiscalYear DateTime
 
   subscriberEmail String
   primaryMobile   String
@@ -321,6 +328,7 @@ model Subscriber {
   notifications Notification[]
   activityLogs  ActivityLog[]
   payments      Payment[]
+  users         User[]
 }
 
 enum ComplaintType {
@@ -427,7 +435,7 @@ model Plan {
   durationMonths Int
   paidFees       Float
   usersLimit     Int
-  fileLimit    Int
+  fileLimit      Int
   maxFileSizeMB  Int?
   branchesLimit  Int
   isActive       Boolean @default(true)

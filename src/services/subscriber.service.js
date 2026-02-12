@@ -1,9 +1,12 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const bcrypt = require("bcryptjs");
 
 const saveUploadedFile = require("../utils/saveUploadedFile");
 const exportExcelUtil = require("../utils/fileHandlers/exportExcel");
 const exportPDFUtil = require("../utils/fileHandlers/exportPdf");
+const generatePassword = require("../utils/passwordGenerator");
+const { sendSubscriberWelcomeEmail } = require("./email.service");
 
 // ===============================
 // Utils
@@ -19,7 +22,7 @@ const generateUniqueSubdomain = async (name) => {
 
   while (true) {
     const suffix = attempt === 0 ? "" : `-${attempt}`;
-    const subdomain = `www.almudaqiq.${clean}${suffix}.com`;
+    const subdomain = `www.${clean}${suffix}.mudqiq.com`;
 
     const existing = await prisma.subscriber.findUnique({
       where: { subdomain },
@@ -82,16 +85,21 @@ exports.create = async (data, files) => {
 
   for (const field of requiredFields) {
     if (!data[field]) {
-      throw { status: 400, message: `${field} is required` };
+      throw { status: 400, customMessage: `${field} is required` };
     }
   }
+
+ // Check required files
+ if (!getFile(files, "licenseCertificate")) {
+    throw { status: 400, customMessage: "licenseCertificate file is required" };
+}
 
   const existing = await prisma.subscriber.findUnique({
     where: { licenseNumber: data.licenseNumber },
   });
 
   if (existing) {
-    throw { status: 400, message: "License already exists" };
+    throw { status: 400, customMessage: "License already exists" };
   }
 
   // ===============================
@@ -102,7 +110,24 @@ exports.create = async (data, files) => {
   });
 
   if (!plan) {
-    throw { status: 400, message: "Invalid Plan ID" };
+    throw { status: 400, customMessage: "Invalid Plan ID" };
+  }
+
+  // ===============================
+  //  VALIDATE COUNTRY & CITY
+  // ===============================
+  const country = await prisma.country.findUnique({
+    where: { id: Number(data.countryId) }
+  });
+  if (!country) {
+    throw { status: 400, customMessage: "Invalid Country ID" };
+  }
+
+  const city = await prisma.city.findUnique({
+    where: { id: Number(data.cityId) }
+  });
+  if (!city) {
+    throw { status: 400, customMessage: "Invalid City ID" };
   }
 
   let subscriptionEndDate = null;
@@ -116,8 +141,11 @@ exports.create = async (data, files) => {
 
   const subdomain = await generateUniqueSubdomain(data.licenseName);
 
-  const subscriber = await prisma.subscriber.create({
-    data: {
+  // START TRANSACTION
+  const result = await prisma.$transaction(async (tx) => {
+    // 1. Create Subscriber
+    const newSubscriber = await tx.subscriber.create({
+      data: {
       country: {
         connect: { id: Number(data.countryId) },
       },
@@ -178,6 +206,52 @@ exports.create = async (data, files) => {
     },
   });
 
+    // 2. Find Owner Role
+    // Make sure you have seeded this role in your DB
+    const ownerRole = await tx.role.findFirst({
+      where: { name: "SUBSCRIBER_OWNER" } // Or whatever name you use for subscriber admins
+    });
+
+    if (!ownerRole) {
+      throw { status: 500, customMessage: "System Error: SUBSCRIBER_OWNER role not found in database." };
+    }
+
+    // 3. Create Owner User
+    const tempPassword = generatePassword(10);
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+    await tx.user.create({
+      data: {
+        fullName: `${data.licenseName} Owner`,
+        email: data.subscriberEmail,
+        password: hashedPassword,
+        phone: data.primaryMobile,
+        status: "active",
+        roleId: ownerRole.id,
+        subscriberId: newSubscriber.id
+      }
+    }); 
+
+    return { subscriber: newSubscriber, tempPassword };
+  });
+
+  // 4. Send Email (Outside transaction to avoid blocking DB if email is slow)
+  // We wrap this in try/catch so file upload and response don't fail if email fails
+  let emailStatus = "SENT";
+  try {
+    const loginUrl = `http://${result.subscriber.subdomain}`; 
+    
+    await sendSubscriberWelcomeEmail({
+      to: data.subscriberEmail,
+      loginUrl,
+      email: data.subscriberEmail,
+      tempPassword: result.tempPassword
+    });
+  } catch (error) {
+    console.error("Warning: Failed to send welcome email.", error.message);
+    emailStatus = `FAILED: ${error.message}`;
+  }
+
   //   uploaded 
   await saveUploadedFile({
     file: files?.licenseCertificate?.[0],
@@ -199,7 +273,12 @@ exports.create = async (data, files) => {
     source: "subscriber",
   });
 
-  return subscriber;
+  // Return subscriber data + tempPassword (in case email failed) + email status
+  return {
+    ...result.subscriber,
+    tempPassword: result.tempPassword,
+    emailStatus
+  };
 };
 
 // ===============================
@@ -461,4 +540,3 @@ exports.exportPDF = async (query = {}) => {
     ])
   });
 };
-

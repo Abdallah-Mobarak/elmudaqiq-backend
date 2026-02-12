@@ -75,18 +75,18 @@ create: async (data) => {
 
     let where = {};
 
-    if (stageCode) where.stageCode = { contains: stageCode, mode: "insensitive" };
-    if (stage) where.stage = { contains: stage, mode: "insensitive" };
-    if (entityType) where.entityType = { contains: entityType, mode: "insensitive" };
+    if (stageCode) where.stageCode = { contains: stageCode, };
+    if (stage) where.stage = { contains: stage, };
+    if (entityType) where.entityType = { contains: entityType,  };
 
     if (search) {
       const s = String(search);
       where.OR = [
-        { stageCode: { contains: s, mode: "insensitive" } },
-        { stage: { contains: s, mode: "insensitive" } },
-        { entityType: { contains: s, mode: "insensitive" } },
-        { procedure: { contains: s, mode: "insensitive" } },
-        { detailedExplanation: { contains: s, mode: "insensitive" } },
+        { stageCode: { contains: s,} },
+        { stage: { contains: s, } },
+        { entityType: { contains: s,  } },
+        { procedure: { contains: s,  } },
+        { detailedExplanation: { contains: s, } },
       ];
     }
 

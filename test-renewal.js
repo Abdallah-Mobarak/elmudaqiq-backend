@@ -8,4 +8,4 @@ renewalService.checkAndSendRenewalNotifications()
   .catch((err) => {
     console.error("Renewal check failed", err);
     process.exit(1);
-  });
+  }); 

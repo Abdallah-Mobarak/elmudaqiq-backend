@@ -64,21 +64,21 @@ module.exports = {
     const where = {};
 
     if (implementationStatus)
-      where.implementationStatus = { contains: implementationStatus, mode: "insensitive" };
+      where.implementationStatus = { contains: implementationStatus,  };
 
     if (codesCollected)
-      where.codesCollected = { contains: codesCollected, mode: "insensitive" };
+      where.codesCollected = { contains: codesCollected,  };
 
     if (search) {
       const s = String(search);
       where.OR = [
-        { codesCollected: { contains: s, mode: "insensitive" } },
-        { implementationStatus: { contains: s, mode: "insensitive" } },
-        { codeOfEthics: { contains: s, mode: "insensitive" } },
-        { policies: { contains: s, mode: "insensitive" } },
-        { ifrs: { contains: s, mode: "insensitive" } },
-        { ias: { contains: s, mode: "insensitive" } },
-        { notes: { contains: s, mode: "insensitive" } }
+        { codesCollected: { contains: s,  } },
+        { implementationStatus: { contains: s, } },
+        { codeOfEthics: { contains: s,  } },
+        { policies: { contains: s,  }},
+        { ifrs: { contains: s, } },
+        { ias: { contains: s,  } },
+        { notes: { contains: s, } }
       ];
     }
 

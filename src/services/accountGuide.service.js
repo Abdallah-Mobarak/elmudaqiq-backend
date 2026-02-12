@@ -146,17 +146,29 @@ getAll: async (filters = {}) => {
   if (level) where.level = level;
 
   if (search) {
+    const s = String(search);
     const searchConditions = [
-      { accountName: { contains: search } },
-      { rulesAndRegulations: { contains: search } }
+      { level: { contains: s } },
+      { accountName: { contains: s } },
+      { rulesAndRegulations: { contains: s } },
+      { disclosureNotes: { contains: s } },
+      { code1: { contains: s } },
+      { code2: { contains: s } },
+      { code3: { contains: s } },
+      { code4: { contains: s } },
+      { code5: { contains: s } },
+      { code6: { contains: s } },
+      { code7: { contains: s } },
+      { code8: { contains: s } },
+      { objectiveCode: { contains: s } },
+      { relatedObjectives: { contains: s } }
     ];
-    
-    // If search is a number, add accountNumber search condition
-    const searchNumber = Number(search);
+
+    const searchNumber = Number(s);
     if (!isNaN(searchNumber)) {
       searchConditions.push({ accountNumber: { equals: searchNumber } });
     }
-    
+
     where.OR = searchConditions;
   }
 
@@ -413,10 +425,30 @@ getAll: async (filters = {}) => {
     if (filters.level) where.level = filters.level;
 
     if (filters.search) {
-      where.OR = [
-        { accountName: { contains: filters.search } },
-        { rulesAndRegulations: { contains: filters.search } }
+      const s = String(filters.search);
+      const searchConditions = [
+        { level: { contains: s } },
+        { accountName: { contains: s } },
+        { rulesAndRegulations: { contains: s } },
+        { disclosureNotes: { contains: s } },
+        { code1: { contains: s } },
+        { code2: { contains: s } },
+        { code3: { contains: s } },
+        { code4: { contains: s } },
+        { code5: { contains: s } },
+        { code6: { contains: s } },
+        { code7: { contains: s } },
+        { code8: { contains: s } },
+        { objectiveCode: { contains: s } },
+        { relatedObjectives: { contains: s } }
       ];
+
+      const searchNumber = Number(s);
+      if (!isNaN(searchNumber)) {
+        searchConditions.push({ accountNumber: { equals: searchNumber } });
+      }
+
+      where.OR = searchConditions;
     }
 
     const data = await prisma.accountGuide.findMany({ where });
@@ -485,10 +517,30 @@ getAll: async (filters = {}) => {
 
   // Search Filter
   if (filters.search) {
-    where.OR = [
-      { accountName: { contains: filters.search } },
-      { rulesAndRegulations: { contains: filters.search } }
+    const s = String(filters.search);
+    const searchConditions = [
+      { level: { contains: s } },
+      { accountName: { contains: s } },
+      { rulesAndRegulations: { contains: s } },
+      { disclosureNotes: { contains: s } },
+      { code1: { contains: s } },
+      { code2: { contains: s } },
+      { code3: { contains: s } },
+      { code4: { contains: s } },
+      { code5: { contains: s } },
+      { code6: { contains: s } },
+      { code7: { contains: s } },
+      { code8: { contains: s } },
+      { objectiveCode: { contains: s } },
+      { relatedObjectives: { contains: s } }
     ];
+
+    const searchNumber = Number(s);
+    if (!isNaN(searchNumber)) {
+      searchConditions.push({ accountNumber: { equals: searchNumber } });
+    }
+
+    where.OR = searchConditions;
   }
 
   const data = await prisma.accountGuide.findMany({ where });

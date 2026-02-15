@@ -22,7 +22,8 @@ const generateUniqueSubdomain = async (name) => {
 
   while (true) {
     const suffix = attempt === 0 ? "" : `-${attempt}`;
-    const subdomain = `www.${clean}${suffix}.mudqiq.com`;
+    // التعديل: تخزين الاسم المختصر فقط (Slug) بدلاً من الرابط الكامل
+    const subdomain = `${clean}${suffix}`;
 
     const existing = await prisma.subscriber.findUnique({
       where: { subdomain },
@@ -228,7 +229,8 @@ exports.create = async (data, files) => {
         phone: data.primaryMobile,
         status: "active",
         roleId: ownerRole.id,
-        subscriberId: newSubscriber.id
+        subscriberId: newSubscriber.id,
+        mustChangePassword: true
       }
     }); 
 
@@ -239,7 +241,9 @@ exports.create = async (data, files) => {
   // We wrap this in try/catch so file upload and response don't fail if email fails
   let emailStatus = "SENT";
   try {
-    const loginUrl = `http://${result.subscriber.subdomain}`; 
+    // التعديل: تكوين الرابط الكامل هنا لإرساله في الإيميل
+    // يفضل وضع الدومين الأساسي في متغير بيئة (process.env.BASE_DOMAIN)
+    const loginUrl = `http://${result.subscriber.subdomain}.mudqiq.com`; 
     
     await sendSubscriberWelcomeEmail({
       to: data.subscriberEmail,

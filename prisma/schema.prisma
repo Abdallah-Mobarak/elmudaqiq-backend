@@ -20,6 +20,7 @@ model User {
   password String
   phone    String?
   status   String  @default("active")
+  mustChangePassword Boolean @default(false)
 
   roleId Int
   Role   Role @relation(fields: [roleId], references: [id])

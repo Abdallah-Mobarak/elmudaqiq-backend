@@ -67,7 +67,7 @@ module.exports = {
         otp: req.body.otp,
         subscriberId: isSubscriber ? req.subscriber.id : null
       });
-
+ 
       res.json(data);
     } catch (err) {
       next(err);
@@ -141,5 +141,23 @@ module.exports = {
     } catch (err) {
       next(err);
     }
-  }
+  },
+
+  // ===============================
+  // CHANGE PASSWORD (LOGGED IN USER)
+  // ===============================
+  changePassword: async (req, res, next) => {
+    try {
+      const data = await authService.changePassword({
+        userId: req.user.id,
+        oldPassword: req.body.oldPassword,
+        newPassword: req.body.newPassword
+      });
+  
+      res.json(data);
+    } catch (err) {
+      next(err);
+    }
+  },
+  
 };

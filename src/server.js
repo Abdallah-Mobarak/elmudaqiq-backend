@@ -9,7 +9,6 @@ dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
 const errorMiddleware = require("./middleware/error.middleware");
-const resolveTenant = require("./middleware/resolveTenant.middleware");
 
 app.use(express.urlencoded({ extended: true }));
 
@@ -25,7 +24,6 @@ app.use("/uploads", express.static("uploads"));
 const authRoutes = require("./routes/auth.routes");
 app.use("/auth", authRoutes);
 require("./cron/renewalNotifications.job");
-app.use("/subscriber-auth", resolveTenant, authRoutes);
 
 
 
@@ -76,4 +74,3 @@ async function startServer() {
   }
 }
 startServer();
-

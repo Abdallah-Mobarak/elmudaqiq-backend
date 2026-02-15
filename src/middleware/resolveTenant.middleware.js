@@ -28,12 +28,14 @@ async function resolveTenant(req, res, next) {
 
       // حماية من www / api / root domain
       if (!subdomain || ["www", "api", "almudaqiq"].includes(subdomain)) {
-        return res.status(400).json({ message: "Invalid tenant" });
+        // If no subdomain or root domain, treat as Admin (no tenant)
+        return next();
       }
     }
 
     if (!subdomain) {
-      return res.status(400).json({ message: "Tenant is required" });
+      // If no tenant header in Dev, treat as Admin
+      return next();
     }
 
     // ===============================

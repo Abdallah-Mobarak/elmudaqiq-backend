@@ -5,6 +5,24 @@ const upload = require("../middleware/uploadSubscriberFiles");
 const subscriberController = require("../controllers/subscriber.controller");
 
 // ===============================
+// Get Subscriber Profile (Self)
+// ===============================
+router.get(
+  "/profile",
+  authMiddleware,
+  subscriberController.getProfile
+);
+
+// ===============================
+// Upgrade Plan (Mock)
+// ===============================
+router.post(
+  "/upgrade",
+  authMiddleware,
+  subscriberController.upgrade
+);
+
+// ===============================
 // Add Subscriber
 // ===============================
 router.post(

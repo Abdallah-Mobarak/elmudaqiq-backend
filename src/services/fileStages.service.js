@@ -24,9 +24,12 @@ function buildIdFilter(id) {
 module.exports = {
 
   // ---------------- CREATE ----------------
-create: async (data) => {
+create: async (data, subscriberId) => {
+  if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
+
   const item = await prisma.fileStage.create({
     data: {
+      subscriberId: Number(subscriberId),
       stageCode: data.stageCode,
       stage: data.stage,
       entityType: data.entityType,
@@ -66,14 +69,18 @@ create: async (data) => {
 },
 
   // ---------------- GET ALL ----------------
-  getAll: async (options = {}) => {
+  getAll: async (options = {}, subscriberId) => {
     const { page = 1, limit = 20, search, stageCode, stage, entityType } = options;
+
+    if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
 
     const pageNum = Number(page) >= 1 ? Number(page) : 1;
     const take = Math.min(Math.max(Number(limit) || 20, 1), 200);
     const skip = (pageNum - 1) * take;
 
-    let where = {};
+    let where = {
+      subscriberId: Number(subscriberId)
+    };
 
     if (stageCode) where.stageCode = { contains: stageCode, };
     if (stage) where.stage = { contains: stage, };
@@ -122,10 +129,15 @@ create: async (data) => {
   },
 
   // ---------------- UPDATE ----------------
-  update: async (id, data) => {
+  update: async (id, data, subscriberId) => {
     id = Number(id);
 
-    const exists = await prisma.fileStage.findUnique({ where: { id } });
+    const exists = await prisma.fileStage.findFirst({
+      where: { 
+        id,
+        subscriberId: Number(subscriberId)
+      }
+    });
     if (!exists) throw { customMessage: "File Stage not found", status: 404 };
 
     const updated = await prisma.fileStage.update({
@@ -137,10 +149,15 @@ create: async (data) => {
   },
 
   // ---------------- DELETE ----------------
-  delete: async (id) => {
+  delete: async (id, subscriberId) => {
     id = Number(id);
 
-    const exists = await prisma.fileStage.findUnique({ where: { id } });
+    const exists = await prisma.fileStage.findFirst({
+      where: { 
+        id,
+        subscriberId: Number(subscriberId)
+      }
+    });
     if (!exists) throw { customMessage: "File Stage not found", status: 404 };
 
     await prisma.fileStage.delete({ where: { id } });
@@ -149,7 +166,9 @@ create: async (data) => {
   },
 
   // ---------------- IMPORT EXCEL ----------------
-importExcel: async (file) => {
+importExcel: async (file, subscriberId) => {
+    if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
+
     return importExcelUtil({
       fileBuffer: file,
       rowMapper: (row) => ({
@@ -177,13 +196,15 @@ importExcel: async (file) => {
         potentialWeaknesses: row.getCell(22).value?.toString().trim() || "",
         performanceIndicators: row.getCell(23).value?.toString().trim() || "",
       }),
-      insertHandler: (row) => prisma.fileStage.create({ data: row }),
+      insertHandler: (row) => prisma.fileStage.create({ data: { ...row, subscriberId: Number(subscriberId) } }),
     });
   },
 
 // ---------------- EXPORT EXCEL ----------------
-exportExcel: async (filters = {}) => {
-  let where = {};
+exportExcel: async (filters = {}, subscriberId) => {
+  let where = {
+    subscriberId: Number(subscriberId)
+  };
 
   // ✅ MULTI ID SUPPORT
   const idFilter = buildIdFilter(filters.id);
@@ -244,8 +265,10 @@ exportExcel: async (filters = {}) => {
 },
 
 // ---------------- EXPORT PDF ----------------
-exportPDF: async (filters = {}) => {
-  let where = {};
+exportPDF: async (filters = {}, subscriberId) => {
+  let where = {
+    subscriberId: Number(subscriberId)
+  };
 
   // ✅ MULTI ID SUPPORT
   const idFilter = buildIdFilter(filters.id);

@@ -19,7 +19,9 @@ function buildIdFilter(id) {
 module.exports = {
 
   // ---------------- CREATE ----------------
-  create: async (data) => {
+  create: async (data, subscriberId) => {
+    if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
+
     const scoreWeight = data.scoreWeight !== undefined ? Number(data.scoreWeight) : null;
     const severityWeight = data.severityWeight !== undefined ? Number(data.severityWeight) : null;
 
@@ -31,6 +33,7 @@ module.exports = {
     const item = await prisma.reviewMarkIndex.create({
       data: {
         ...data,
+        subscriberId: Number(subscriberId),
         scoreWeight,
         severityWeight,
         priorityScore
@@ -41,10 +44,14 @@ module.exports = {
   },
 
   // ---------------- GET ALL ----------------
-  getAll: async (filters = {}) => {
+  getAll: async (filters = {}, subscriberId) => {
     const { page = 1, limit = 20, search, suggestedStage, sectorTags, severityLevel } = filters;
 
-    const where = {};
+    if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
+
+    const where = {
+      subscriberId: Number(subscriberId)
+    };
 
     if (suggestedStage)
       where.suggestedStage = { contains: suggestedStage,  };
@@ -88,8 +95,13 @@ module.exports = {
   },
 
   // ---------------- UPDATE ----------------
-  update: async (id, data) => {
-    const exists = await prisma.reviewMarkIndex.findUnique({ where: { id: Number(id) } });
+  update: async (id, data, subscriberId) => {
+    const exists = await prisma.reviewMarkIndex.findFirst({
+      where: { 
+        id: Number(id),
+        subscriberId: Number(subscriberId)
+      }
+    });
     if (!exists) throw { customMessage: "Review Mark not found", status: 404 };
 
     const scoreWeight =
@@ -112,13 +124,23 @@ module.exports = {
   },
 
   // ---------------- DELETE ----------------
-  delete: async (id) => {
+  delete: async (id, subscriberId) => {
+    const exists = await prisma.reviewMarkIndex.findFirst({
+      where: { 
+        id: Number(id),
+        subscriberId: Number(subscriberId)
+      }
+    });
+    if (!exists) throw { customMessage: "Review Mark not found", status: 404 };
+
     await prisma.reviewMarkIndex.delete({ where: { id: Number(id) } });
     return { message: "Deleted successfully" };
   },
 
   // ---------------- IMPORT EXCEL ----------------
-  importExcel: async (file) => {
+  importExcel: async (file, subscriberId) => {
+    if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
+
     return importExcelUtil({
       fileBuffer: file,
       rowMapper: (row) => {
@@ -148,13 +170,15 @@ module.exports = {
         };
       },
 
-      insertHandler: (row) => prisma.reviewMarkIndex.create({ data: row })
+      insertHandler: (row) => prisma.reviewMarkIndex.create({ data: { ...row, subscriberId: Number(subscriberId) } })
     });
   },
 
   // ---------------- EXPORT EXCEL ----------------
-  exportExcel: async (filters = {}) => {
-    const where = {};
+  exportExcel: async (filters = {}, subscriberId) => {
+    const where = {
+      subscriberId: Number(subscriberId)
+    };
     const idFilter = buildIdFilter(filters.id);
     if (idFilter) where.id = idFilter;
 
@@ -187,8 +211,10 @@ module.exports = {
   },
 
   // ---------------- EXPORT PDF ----------------
-  exportPDF: async (filters = {}) => {
-    const where = {};
+  exportPDF: async (filters = {}, subscriberId) => {
+    const where = {
+      subscriberId: Number(subscriberId)
+    };
     const idFilter = buildIdFilter(filters.id);
     if (idFilter) where.id = idFilter;
 

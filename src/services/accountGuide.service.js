@@ -100,8 +100,10 @@ module.exports = {
   // =========================
   // CREATE
   // =========================
-  create: async (data) => {
+  create: async (data, subscriberId) => {
     const { level, accountNumber, accountName } = data;
+
+    if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
 
     if (!level || accountNumber === undefined || accountNumber === null || !accountName) {
       throw { customMessage: "Level, Account Number, and Account Name are required", status: 400 };
@@ -109,7 +111,10 @@ module.exports = {
 
     // Check for duplicate accountNumber - prevent duplicates in manual create
     const existing = await prisma.accountGuide.findFirst({
-      where: { accountNumber: Number(accountNumber) }
+      where: { 
+        accountNumber: Number(accountNumber),
+        subscriberId: Number(subscriberId) // Check within tenant only
+      }
     });
 
     if (existing) {
@@ -123,7 +128,8 @@ module.exports = {
       data: {
         ...data,
         level: String(level),
-        accountNumber: Number(accountNumber)
+        accountNumber: Number(accountNumber),
+        subscriberId: Number(subscriberId) // Add subscriberId
       }
     });
 
@@ -133,14 +139,18 @@ module.exports = {
   // =========================
   // GET ALL + FILTER
   // =========================
-getAll: async (filters = {}) => {
+getAll: async (filters = {}, subscriberId) => {
   const { page = 1, limit = 20, search, level, id } = filters;
+
+  if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
 
   const pageNum = Number(page);
   const take = Number(limit);
   const skip = (pageNum - 1) * take;
 
-  const where = {};
+  const where = {
+    subscriberId: Number(subscriberId) // Filter by tenant
+  };
 
   if (id) where.id = Number(id);
   if (level) where.level = level;
@@ -198,9 +208,12 @@ getAll: async (filters = {}) => {
   // =========================
   // UPDATE
   // =========================
-  update: async (id, data) => {
-    const exists = await prisma.accountGuide.findUnique({
-      where: { id: Number(id) }
+  update: async (id, data, subscriberId) => {
+    const exists = await prisma.accountGuide.findFirst({
+      where: { 
+        id: Number(id),
+        subscriberId: Number(subscriberId) // Ensure ownership
+      }
     });
 
     if (!exists) {
@@ -218,9 +231,12 @@ getAll: async (filters = {}) => {
   // =========================
   // DELETE
   // =========================
-  delete: async (id) => {
-    const exists = await prisma.accountGuide.findUnique({
-      where: { id: Number(id) }
+  delete: async (id, subscriberId) => {
+    const exists = await prisma.accountGuide.findFirst({
+      where: { 
+        id: Number(id),
+        subscriberId: Number(subscriberId) // Ensure ownership
+      }
     });
 
     if (!exists) {
@@ -240,7 +256,9 @@ getAll: async (filters = {}) => {
   // =========================
   // IMPORT EXCEL
   // =========================
-  importExcel: async (file) => {
+  importExcel: async (file, subscriberId) => {
+    if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
+
     const ExcelJS = require("exceljs");
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(file.buffer);
@@ -343,7 +361,8 @@ getAll: async (filters = {}) => {
       const accountNumbersToCheck = rows.map(r => r.accountNumber);
       const existing = await prisma.accountGuide.findMany({
         where: {
-          accountNumber: { in: accountNumbersToCheck }
+          accountNumber: { in: accountNumbersToCheck },
+          subscriberId: Number(subscriberId)
         },
         select: { accountNumber: true, id: true }
       });
@@ -380,7 +399,7 @@ getAll: async (filters = {}) => {
               disclosureNotes: rowData.disclosureNotes,
               code1: rowData.code1,
               objectiveCode: rowData.objectiveCode,
-
+              subscriberId: Number(subscriberId)
             }
           });
           imported++;
@@ -418,8 +437,10 @@ getAll: async (filters = {}) => {
   // =========================
   // EXPORT EXCEL (FULL COLUMNS)
   // =========================
-  exportExcel: async (filters = {}) => {
-    const where = {};
+  exportExcel: async (filters = {}, subscriberId) => {
+    const where = {
+      subscriberId: Number(subscriberId)
+    };
 
     if (filters.id) where.id = Number(filters.id);
     if (filters.level) where.level = filters.level;
@@ -501,9 +522,11 @@ getAll: async (filters = {}) => {
   // =========================
   // EXPORT PDF
   // =========================
-  exportPDF: async (filters = {}) => {
+  exportPDF: async (filters = {}, subscriberId) => {
 
-  const where = {};
+  const where = {
+    subscriberId: Number(subscriberId)
+  };
 
   // Filter by ID
   if (filters.id) {

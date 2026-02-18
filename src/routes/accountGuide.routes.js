@@ -5,14 +5,14 @@ const uploadExcel = require("../middleware/uploadExcel");
 const accountGuideController = require("../controllers/accountGuide.controller");
 
 // CRUD
-router.post("/", authMiddleware, adminMiddleware, accountGuideController.create);
-router.get("/", authMiddleware, adminMiddleware, accountGuideController.getAll);
-router.put("/:id", authMiddleware, adminMiddleware, accountGuideController.update);
-router.delete("/:id", authMiddleware, adminMiddleware, accountGuideController.delete);
+router.post("/", authMiddleware, accountGuideController.create);
+router.get("/", authMiddleware, accountGuideController.getAll);
+router.put("/:id", authMiddleware, accountGuideController.update);
+router.delete("/:id", authMiddleware, accountGuideController.delete);
 
 // Import & Export
-router.post("/import", authMiddleware, adminMiddleware, uploadExcel.single("file"), accountGuideController.importExcel);
-router.get("/export/excel", authMiddleware, adminMiddleware, accountGuideController.exportExcel);
-router.get("/export/pdf", authMiddleware, adminMiddleware, accountGuideController.exportPDF);
+router.post("/import", authMiddleware, uploadExcel.single("file"), accountGuideController.importExcel);
+router.get("/export/excel", authMiddleware, accountGuideController.exportExcel);
+router.get("/export/pdf", authMiddleware, accountGuideController.exportPDF);
 
 module.exports = router;

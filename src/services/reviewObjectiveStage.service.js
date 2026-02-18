@@ -19,7 +19,9 @@ function buildIdFilter(id) {
 module.exports = {
 
   // ---------------- CREATE ----------------
-  create: async (data) => {
+  create: async (data, subscriberId) => {
+    if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
+
     let numberOfCollectedObjectives = null;
 
     if (data.codesCollected) {
@@ -48,6 +50,7 @@ module.exports = {
     const item = await prisma.reviewObjectiveStage.create({
       data: {
         ...data,
+        subscriberId: Number(subscriberId),
         numberOfCollectedObjectives,
         totalRelativeWeight,
         gapPercentage
@@ -58,10 +61,14 @@ module.exports = {
   },
 
   // ---------------- GET ALL ----------------
-  getAll: async (filters = {}) => {
+  getAll: async (filters = {}, subscriberId) => {
     const { page = 1, limit = 20, search, implementationStatus, codesCollected } = filters;
 
-    const where = {};
+    if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
+
+    const where = {
+      subscriberId: Number(subscriberId)
+    };
 
     if (implementationStatus)
       where.implementationStatus = { contains: implementationStatus,  };
@@ -105,8 +112,13 @@ module.exports = {
   },
 
   // ---------------- UPDATE ----------------
-  update: async (id, data) => {
-    const exists = await prisma.reviewObjectiveStage.findUnique({ where: { id: Number(id) } });
+  update: async (id, data, subscriberId) => {
+    const exists = await prisma.reviewObjectiveStage.findFirst({
+      where: { 
+        id: Number(id),
+        subscriberId: Number(subscriberId)
+      }
+    });
     if (!exists) throw { customMessage: "Record not found", status: 404 };
 
     let numberOfCollectedObjectives = exists.numberOfCollectedObjectives;
@@ -141,13 +153,23 @@ module.exports = {
   },
 
   // ---------------- DELETE ----------------
-  delete: async (id) => {
+  delete: async (id, subscriberId) => {
+    const exists = await prisma.reviewObjectiveStage.findFirst({
+      where: { 
+        id: Number(id),
+        subscriberId: Number(subscriberId)
+      }
+    });
+    if (!exists) throw { customMessage: "Record not found", status: 404 };
+
     await prisma.reviewObjectiveStage.delete({ where: { id: Number(id) } });
     return { message: "Deleted successfully" };
   },
 
   // ---------------- IMPORT EXCEL ----------------
-  importExcel: async (file) => {
+  importExcel: async (file, subscriberId) => {
+    if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
+
     return importExcelUtil({
       fileBuffer: file,
       rowMapper: (row) => {
@@ -185,6 +207,7 @@ module.exports = {
         return prisma.reviewObjectiveStage.create({
           data: {
             ...r,
+            subscriberId: Number(subscriberId),
             numberOfCollectedObjectives: codes.length,
             totalRelativeWeight,
             gapPercentage
@@ -195,8 +218,10 @@ module.exports = {
   },
 
   // ---------------- EXPORT EXCEL ----------------
-  exportExcel: async (filters = {}) => {
-    const where = {};
+  exportExcel: async (filters = {}, subscriberId) => {
+    const where = {
+      subscriberId: Number(subscriberId)
+    };
     const idFilter = buildIdFilter(filters.id);
     if (idFilter) where.id = idFilter;
 
@@ -233,8 +258,10 @@ module.exports = {
   },
 
   // ---------------- EXPORT PDF ----------------
-  exportPDF: async (filters = {}) => {
-    const where = {};
+  exportPDF: async (filters = {}, subscriberId) => {
+    const where = {
+      subscriberId: Number(subscriberId)
+    };
     const idFilter = buildIdFilter(filters.id);
     if (idFilter) where.id = idFilter;
 

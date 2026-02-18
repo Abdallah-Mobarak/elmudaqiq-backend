@@ -98,10 +98,37 @@ model AuthorityWebsite {
   updatedAt DateTime @updatedAt
 }
 
+// ===============================
+// 1. Account Guide (Templates & Tenant)
+// ===============================
+model AccountGuideTemplate {
+  id Int @id @default(autoincrement())
+  level         String @db.Text
+  accountNumber Int
+  accountName   String @db.Text
+  rulesAndRegulations String? @db.Text
+  disclosureNotes     String? @db.Text
+  code1 String? @db.Text
+  code2 String? @db.Text
+  code3 String? @db.Text
+  code4 String? @db.Text
+  code5 String? @db.Text
+  code6 String? @db.Text
+  code7 String? @db.Text
+  code8 String? @db.Text
+  objectiveCode     String? @db.Text
+  relatedObjectives String? @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model AccountGuide {
   id Int @id @default(autoincrement())
 
-  level         String @db.Text
+  subscriberId Int
+  subscriber   Subscriber @relation(fields: [subscriberId], references: [id])
+
+  level         String
   accountNumber Int
   accountName   String @db.Text
 
@@ -122,9 +149,16 @@ model AccountGuide {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([subscriberId])
+  @@index([accountNumber])
+  @@index([level])
 }
 
-model ReviewGuide {
+// ===============================
+// 2. Review Guide (Templates & Tenant)
+// ===============================
+model ReviewGuideTemplate {
   id                Int       @id @default(autoincrement())
   level             String?
   separator         String?
@@ -143,8 +177,67 @@ model ReviewGuide {
   updatedAt         DateTime  @updatedAt
 }
 
+model ReviewGuide {
+  id                Int       @id @default(autoincrement())
+  subscriberId      Int
+  subscriber        Subscriber @relation(fields: [subscriberId], references: [id])
+
+  level             String?
+  separator         String?
+  number            String?
+  statement         String?
+  purpose           String?
+  responsiblePerson String?
+  datePrepared      DateTime?
+  dateReviewed      DateTime?
+  conclusion        String?
+  attachments       String?
+  notes1            String?
+  notes2            String?
+  notes3            String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([subscriberId])
+}
+
+// ===============================
+// 3. File Stage (Templates & Tenant)
+// ===============================
+model FileStageTemplate {
+  id                    Int     @id @default(autoincrement())
+  stageCode             String?
+  stage                 String?
+  entityType            String?
+  economicSector        String?
+  procedure             String?
+  scopeOfProcedure      String?
+  selectionMethod       String?
+  examplesOfUse         String?
+  IAS                   String?
+  IFRS                  String?
+  ISA                   String?
+  relevantPolicies      String?
+  detailedExplanation   String?
+  formsToBeCompleted    String?
+  practicalProcedures   String?
+  associatedRisks       String?
+  riskLevel             String?
+  responsibleAuthority  String?
+  outputs               String?
+  implementationPeriod  String?
+  strengths             String?
+  potentialWeaknesses   String?
+  performanceIndicators String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model FileStage {
   id                    Int     @id @default(autoincrement())
+  subscriberId          Int
+  subscriber            Subscriber @relation(fields: [subscriberId], references: [id])
+
   stageCode             String?
   stage                 String?
   entityType            String?
@@ -171,10 +264,38 @@ model FileStage {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([subscriberId])
+}
+
+// ===============================
+// 4. Review Objective (Templates & Tenant)
+// ===============================
+model ReviewObjectiveStageTemplate {
+  id                          Int     @id @default(autoincrement())
+  codesCollected              String? 
+  numberOfCollectedObjectives Int? 
+  ethicalCompliancePercentage    Float?
+  professionalPlanningPercentage Float?
+  internalControlPercentage      Float?
+  evidencePercentage             Float?
+  evaluationPercentage           Float?
+  documentationPercentage        Float?
+  totalRelativeWeight  Float?
+  codeOfEthics String?
+  policies     String?
+  ifrs         String?
+  ias          String?
+  notes        String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ReviewObjectiveStage {
   id                          Int     @id @default(autoincrement())
+  subscriberId                Int
+  subscriber                  Subscriber @relation(fields: [subscriberId], references: [id])
+
   codesCollected              String? // "A,B,C"
   numberOfCollectedObjectives Int? // auto calculated
 
@@ -198,10 +319,37 @@ model ReviewObjectiveStage {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([subscriberId])
+}
+
+// ===============================
+// 5. Review Mark Index (Templates & Tenant)
+// ===============================
+model ReviewMarkIndexTemplate {
+  id Int @id @default(autoincrement())
+  codeImage        String? 
+  name             String?
+  shortDescription String?
+  suggestedStage   String?
+  whenToUse        String?
+  exampleShortForm String?
+  sectorTags       String?
+  assertion        String?
+  benchmark        String?
+  scoreWeight    Float?
+  severityLevel  Int?
+  severityWeight Float?
+  priorityScore  Float? 
+  priorityRating String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ReviewMarkIndex {
   id Int @id @default(autoincrement())
+  subscriberId Int
+  subscriber   Subscriber @relation(fields: [subscriberId], references: [id])
 
   codeImage        String? // image path
   name             String?
@@ -222,6 +370,34 @@ model ReviewMarkIndex {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([subscriberId])
+}
+
+model Subscription {
+  id Int @id @default(autoincrement())
+
+  subscriberId Int
+  subscriber   Subscriber @relation(fields: [subscriberId], references: [id])
+
+  planId Int
+  plan   Plan @relation(fields: [planId], references: [id])
+
+  startDate DateTime
+  endDate   DateTime
+
+  amountPaid    Float
+  paymentMethod String?
+  paymentStatus String             @default("PAID")
+  status        SubscriptionStatus @default(ACTIVE)
+
+  gracePeriodEnd DateTime?
+  autoRenew      Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments Payment[]
 }
 
 enum SubscriberStatus {
@@ -229,6 +405,13 @@ enum SubscriberStatus {
   INACTIVE
   PENDING
   SUSPENDED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  PENDING
 }
 
 model Subscriber {
@@ -294,11 +477,7 @@ model Subscriber {
   // ===============================
   // Subscription & Billing
   // ===============================
-  planId                Int?
-  subscriptionStartDate DateTime?
-  subscriptionEndDate   DateTime?
-  paidFees              Float?
-  paymentMethod         String?
+  // Fields moved to Subscription model
 
   // ===============================
   // Renewal Report Fields (1.5)
@@ -324,12 +503,17 @@ model Subscriber {
   // ===============================
   // Relation
   // =============================== 
-  plan          Plan?          @relation(fields: [planId], references: [id])
   complaints    Complaint[]
   notifications Notification[]
   activityLogs  ActivityLog[]
   payments      Payment[]
   users         User[]
+  subscriptions Subscription[]
+  accountGuides AccountGuide[]
+  reviewGuides  ReviewGuide[]
+  fileStages    FileStage[]
+  reviewObjectiveStages ReviewObjectiveStage[]
+  reviewMarkIndices     ReviewMarkIndex[]
 }
 
 enum ComplaintType {
@@ -420,6 +604,9 @@ model Payment {
   subscriberId Int
   subscriber   Subscriber @relation(fields: [subscriberId], references: [id])
 
+  subscriptionId Int?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+
   amount Float
   method String // CASH | VISA | WALLET
   status String // PAID | REFUNDED | PENDING
@@ -441,7 +628,8 @@ model Plan {
   branchesLimit  Int
   isActive       Boolean @default(true)
 
-  subscribers Subscriber[]
+  // subscribers Subscriber[] // Removed direct relation
+  subscriptions Subscription[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

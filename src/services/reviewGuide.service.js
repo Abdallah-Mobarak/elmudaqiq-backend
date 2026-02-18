@@ -8,10 +8,13 @@ const exportPDFUtil = require("../utils/fileHandlers/exportPdf");
 module.exports = {
 
   // ---------------- CREATE ---------------- //
-  create: async (data) => {
+  create: async (data, subscriberId) => {
+    if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
+
     const item = await prisma.reviewGuide.create({
       data: {
         ...data,
+        subscriberId: Number(subscriberId),
         datePrepared: data.datePrepared ? new Date(data.datePrepared) : null,
         dateReviewed: data.dateReviewed ? new Date(data.dateReviewed) : null,
       }
@@ -21,7 +24,7 @@ module.exports = {
   },
 
   // ---------------- GET ALL (Filters + Pagination) ---------------- //
-  getAll: async (filters = {}) => {
+  getAll: async (filters = {}, subscriberId) => {
     const {
       page = 1,
       limit = 20,
@@ -33,9 +36,13 @@ module.exports = {
       id
     } = filters;
 
+    if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
+
     const skip = (page - 1) * limit;
 
-    const where = {};
+    const where = {
+      subscriberId: Number(subscriberId)
+    };
 
     if (id) where.id = Number(id);
     if (level) where.level = { contains: level};
@@ -84,9 +91,12 @@ module.exports = {
   },
 
   // ---------------- UPDATE ---------------- //
-  update: async (id, data) => {
-    const exists = await prisma.reviewGuide.findUnique({
-      where: { id: Number(id) }
+  update: async (id, data, subscriberId) => {
+    const exists = await prisma.reviewGuide.findFirst({
+      where: { 
+        id: Number(id),
+        subscriberId: Number(subscriberId)
+      }
     });
 
     if (!exists) throw { customMessage: "Review Guide entry not found", status: 404 };
@@ -100,9 +110,12 @@ module.exports = {
   },
 
   // ---------------- DELETE ---------------- //
-  delete: async (id) => {
-    const exists = await prisma.reviewGuide.findUnique({
-      where: { id: Number(id) }
+  delete: async (id, subscriberId) => {
+    const exists = await prisma.reviewGuide.findFirst({
+      where: { 
+        id: Number(id),
+        subscriberId: Number(subscriberId)
+      }
     });
 
     if (!exists) throw { customMessage: "Review Guide entry not found", status: 404 };
@@ -113,7 +126,9 @@ module.exports = {
   },
 
   // ---------------- IMPORT EXCEL ---------------- //
-  importExcel: async (file) => {
+  importExcel: async (file, subscriberId) => {
+    if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
+
     return importExcelUtil({
       fileBuffer: file,
       rowMapper: (row) => {
@@ -134,15 +149,17 @@ module.exports = {
           notes3: row.getCell(14)?.value?.toString().trim() || null,
         };
       },
-      insertHandler: (row) => prisma.reviewGuide.create({ data: row })
+      insertHandler: (row) => prisma.reviewGuide.create({ data: { ...row, subscriberId: Number(subscriberId) } })
     });
   },
 
   // ---------------- EXPORT EXCEL (Filters + id + multi-ids) ---------------- //
-  exportExcel: async (filters = {}) => {
+  exportExcel: async (filters = {}, subscriberId) => {
     const { ids, id } = filters;
 
-    const where = {};
+    const where = {
+      subscriberId: Number(subscriberId)
+    };
 
     if (id) where.id = Number(id);
 
@@ -180,10 +197,12 @@ module.exports = {
   },
 
   // ---------------- EXPORT PDF (Filters + id + multi-ids) ---------------- //
-  exportPDF: async (filters = {}) => {
+  exportPDF: async (filters = {}, subscriberId) => {
     const { ids, id } = filters;
 
-    const where = {};
+    const where = {
+      subscriberId: Number(subscriberId)
+    };
     if (id) where.id = Number(id);
 
     if (ids) {

@@ -183,19 +183,7 @@ exports.create = async (data, files) => {
 
       subscriberEmail: data.subscriberEmail,
       primaryMobile: data.primaryMobile,
-
       status: "PENDING",
-
-      plan: {
-        connect: {
-          id: Number(data.planId),
-        },
-      },
-
-      subscriptionStartDate: data.subscriptionStartDate
-        ? new Date(data.subscriptionStartDate)
-        : null,
-      subscriptionEndDate,
 
       facilityLink: data.facilityLink || null,
       factoryLogo: getFile(files, "factoryLogo"),
@@ -207,7 +195,21 @@ exports.create = async (data, files) => {
     },
   });
 
-    // 2. Find Owner Role
+    // 2. Create Subscription
+    await tx.subscription.create({
+      data: {
+        subscriberId: newSubscriber.id,
+        planId: Number(data.planId),
+        startDate: data.subscriptionStartDate ? new Date(data.subscriptionStartDate) : new Date(),
+        endDate: subscriptionEndDate || new Date(),
+        amountPaid: plan.paidFees,
+        paymentMethod: "CASH", // Default for initial creation or pass from data
+        status: "ACTIVE",
+        autoRenew: false
+      }
+    });
+
+    // 3. Find Owner Role
     // Make sure you have seeded this role in your DB
     const ownerRole = await tx.role.findFirst({
       where: { name: "SUBSCRIBER_OWNER" } // Or whatever name you use for subscriber admins
@@ -217,7 +219,7 @@ exports.create = async (data, files) => {
       throw { status: 500, customMessage: "System Error: SUBSCRIBER_OWNER role not found in database." };
     }
 
-    // 3. Create Owner User
+    // 4. Create Owner User
     const tempPassword = generatePassword(10);
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
@@ -233,6 +235,129 @@ exports.create = async (data, files) => {
         mustChangePassword: true
       }
     }); 
+
+    // ===============================
+    // 5. CLONE MASTER DATA (The "Snapshot" Logic)
+    // ===============================
+    
+    // A. Clone Account Guide
+    const accountTemplates = await tx.accountGuideTemplate.findMany();
+    if (accountTemplates.length > 0) {
+      await tx.accountGuide.createMany({
+        data: accountTemplates.map(t => ({
+          subscriberId: newSubscriber.id,
+          level: t.level,
+          accountNumber: t.accountNumber,
+          accountName: t.accountName,
+          rulesAndRegulations: t.rulesAndRegulations,
+          disclosureNotes: t.disclosureNotes,
+          code1: t.code1, code2: t.code2, code3: t.code3, code4: t.code4,
+          code5: t.code5, code6: t.code6, code7: t.code7, code8: t.code8,
+          objectiveCode: t.objectiveCode,
+          relatedObjectives: t.relatedObjectives
+        }))
+      });
+    }
+
+    // B. Clone Review Guide
+    const reviewTemplates = await tx.reviewGuideTemplate.findMany();
+    if (reviewTemplates.length > 0) {
+      await tx.reviewGuide.createMany({
+        data: reviewTemplates.map(t => ({
+          subscriberId: newSubscriber.id,
+          level: t.level,
+          separator: t.separator,
+          number: t.number,
+          statement: t.statement,
+          purpose: t.purpose,
+          responsiblePerson: t.responsiblePerson,
+          datePrepared: t.datePrepared,
+          dateReviewed: t.dateReviewed,
+          conclusion: t.conclusion,
+          attachments: t.attachments,
+          notes1: t.notes1, notes2: t.notes2, notes3: t.notes3
+        }))
+      });
+    }
+
+    // C. Clone File Stages
+    const fileStageTemplates = await tx.fileStageTemplate.findMany();
+    if (fileStageTemplates.length > 0) {
+      await tx.fileStage.createMany({
+        data: fileStageTemplates.map(t => ({
+          subscriberId: newSubscriber.id,
+          stageCode: t.stageCode,
+          stage: t.stage,
+          entityType: t.entityType,
+          economicSector: t.economicSector,
+          procedure: t.procedure,
+          scopeOfProcedure: t.scopeOfProcedure,
+          selectionMethod: t.selectionMethod,
+          examplesOfUse: t.examplesOfUse,
+          IAS: t.IAS, IFRS: t.IFRS, ISA: t.ISA,
+          relevantPolicies: t.relevantPolicies,
+          detailedExplanation: t.detailedExplanation,
+          formsToBeCompleted: t.formsToBeCompleted,
+          practicalProcedures: t.practicalProcedures,
+          associatedRisks: t.associatedRisks,
+          riskLevel: t.riskLevel,
+          responsibleAuthority: t.responsibleAuthority,
+          outputs: t.outputs,
+          implementationPeriod: t.implementationPeriod,
+          strengths: t.strengths,
+          potentialWeaknesses: t.potentialWeaknesses,
+          performanceIndicators: t.performanceIndicators
+        }))
+      });
+    }
+
+    // D. Clone Review Objective Stages
+    const objectiveTemplates = await tx.reviewObjectiveStageTemplate.findMany();
+    if (objectiveTemplates.length > 0) {
+      await tx.reviewObjectiveStage.createMany({
+        data: objectiveTemplates.map(t => ({
+          subscriberId: newSubscriber.id,
+          codesCollected: t.codesCollected,
+          numberOfCollectedObjectives: t.numberOfCollectedObjectives,
+          ethicalCompliancePercentage: t.ethicalCompliancePercentage,
+          professionalPlanningPercentage: t.professionalPlanningPercentage,
+          internalControlPercentage: t.internalControlPercentage,
+          evidencePercentage: t.evidencePercentage,
+          evaluationPercentage: t.evaluationPercentage,
+          documentationPercentage: t.documentationPercentage,
+          totalRelativeWeight: t.totalRelativeWeight,
+          codeOfEthics: t.codeOfEthics,
+          policies: t.policies,
+          ifrs: t.ifrs,
+          ias: t.ias,
+          notes: t.notes
+        }))
+      });
+    }
+
+    // E. Clone Review Mark Index
+    const markTemplates = await tx.reviewMarkIndexTemplate.findMany();
+    if (markTemplates.length > 0) {
+      await tx.reviewMarkIndex.createMany({
+        data: markTemplates.map(t => ({
+          subscriberId: newSubscriber.id,
+          codeImage: t.codeImage,
+          name: t.name,
+          shortDescription: t.shortDescription,
+          suggestedStage: t.suggestedStage,
+          whenToUse: t.whenToUse,
+          exampleShortForm: t.exampleShortForm,
+          sectorTags: t.sectorTags,
+          assertion: t.assertion,
+          benchmark: t.benchmark,
+          scoreWeight: t.scoreWeight,
+          severityLevel: t.severityLevel,
+          severityWeight: t.severityWeight,
+          priorityScore: t.priorityScore,
+          priorityRating: t.priorityRating
+        }))
+      });
+    }
 
     return { subscriber: newSubscriber, tempPassword };
   });
@@ -271,7 +396,7 @@ exports.create = async (data, files) => {
     file: files?.commercialActivityFile?.[0],
     source: "subscriber",
   });
-
+ 
   await saveUploadedFile({
     file: files?.factoryLogo?.[0],
     source: "subscriber",
@@ -325,7 +450,11 @@ exports.getAll = async (query) => {
       include: {
         country: { select: { id: true, name: true } },
         city: { select: { id: true, name: true } },
-        plan: true,
+        subscriptions: {
+          where: { status: "ACTIVE" },
+          include: { plan: true },
+          take: 1
+        }
       },
     }),
     prisma.subscriber.count({ where }),
@@ -421,17 +550,11 @@ exports.exportExcel = async (query = {}) => {
     include: {
       country: { select: { name: true } },
       city: { select: { name: true } },
-      plan: {
-        select: {
-          name: true,
-          durationMonths: true,
-          paidFees: true,
-          usersLimit: true,
-          fileLimit: true,
-          maxFileSizeMB: true,
-          branchesLimit: true,
-        },
-      },
+      subscriptions: {
+        where: { status: "ACTIVE" },
+        include: { plan: true },
+        take: 1
+      }
     },
     orderBy: { createdAt: "desc" },
   });
@@ -467,7 +590,10 @@ exports.exportExcel = async (query = {}) => {
       "Created At"
     ],
 
-    rows: data.map(s => [
+    rows: data.map(s => {
+      const activeSub = s.subscriptions[0];
+      const plan = activeSub?.plan;
+      return [
       s.id,
       s.licenseName,
       s.licenseNumber,
@@ -484,17 +610,17 @@ exports.exportExcel = async (query = {}) => {
       s.language,
       s.currency,
       s.status,
-      s.subscriptionStartDate,
-      s.subscriptionEndDate,
-      s.plan?.name,
-      s.plan?.durationMonths,
-      s.plan?.paidFees,
-      s.plan?.usersLimit,
-      s.plan?.fileLimit,
-      s.plan?.maxFileSizeMB,
-      s.plan?.branchesLimit,
+      activeSub?.startDate,
+      activeSub?.endDate,
+      plan?.name,
+      plan?.durationMonths,
+      activeSub?.amountPaid,
+      plan?.usersLimit,
+      plan?.fileLimit,
+      plan?.maxFileSizeMB,
+      plan?.branchesLimit,
       s.createdAt
-    ])
+    ]})
   });
 };
 
@@ -542,5 +668,164 @@ exports.exportPDF = async (query = {}) => {
       s.subscriptionStartDate,
       s.subscriptionEndDate
     ])
+  });
+};
+
+// ===============================
+// Get Subscriber Profile
+// ===============================
+exports.getSubscriberProfile = async (subscriberId) => {
+  const subscriber = await prisma.subscriber.findUnique({
+    where: { id: Number(subscriberId) },
+    include: {
+      country: true,
+      city: true,
+    },
+  });
+
+  if (!subscriber) {
+    throw { status: 404, customMessage: "Subscriber not found" };
+  }
+
+  // Fetch Active Subscription
+  const activeSubscription = await prisma.subscription.findFirst({
+    where: {
+      subscriberId: Number(subscriberId),
+      status: "ACTIVE"
+    },
+    include: { plan: true },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  // Calculate usage statistics
+  const usersCount = await prisma.user.count({
+    where: { subscriberId: Number(subscriberId) },
+  });
+
+  // Placeholder for future entities (Branches, Clients, Storage)
+  const branchesCount = 0;
+  const clientsCount = 0;
+  const storageUsedMB = 0;
+
+  // External Links logic
+  const authorityLinks = {
+    cpa: subscriber.cpaWebsite || subscriber.country?.cpaWebsite || "",
+    ministry: subscriber.commerceWebsite || subscriber.country?.commerceWebsite || "",
+    tax: subscriber.taxWebsite || subscriber.country?.taxWebsite || "",
+  };
+
+  const plan = activeSubscription?.plan;
+
+  // Calculate remaining days
+  let remainingDays = 0;
+  if (activeSubscription?.endDate) {
+    const now = new Date();
+    const end = new Date(activeSubscription.endDate);
+    const diffTime = end - now;
+    remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (remainingDays < 0) remainingDays = 0;
+  }
+
+  const usage = {
+    users: {
+      used: usersCount,
+      limit: plan?.usersLimit || 0,
+      remaining: (plan?.usersLimit || 0) - usersCount,
+      percentage: plan?.usersLimit ? Math.round((usersCount / plan.usersLimit) * 100) : 0
+    },
+    branches: {
+      used: branchesCount,
+      limit: plan?.branchesLimit || 0,
+      remaining: (plan?.branchesLimit || 0) - branchesCount,
+      percentage: 0
+    },
+    clients: {
+      used: clientsCount,
+      limit: plan?.fileLimit || 0,
+      remaining: (plan?.fileLimit || 0) - clientsCount,
+      percentage: 0
+    },
+    storage: {
+      usedMB: storageUsedMB,
+      limitMB: plan?.maxFileSizeMB || 0,
+      remainingMB: (plan?.maxFileSizeMB || 0) - storageUsedMB,
+      percentage: 0
+    },
+    subscription: {
+      startDate: activeSubscription?.startDate,
+      endDate: activeSubscription?.endDate,
+      remainingDays: remainingDays
+    }
+  };
+
+  return {
+    location: {
+      country: subscriber.country?.name || "N/A",
+      city: subscriber.city?.name || "N/A",
+      authorityLinks
+    },
+    license: {
+      type: subscriber.licenseType,
+      number: subscriber.licenseNumber,
+      date: subscriber.licenseDate,
+      name: subscriber.licenseName
+    },
+    plan: {
+      name: plan?.name || "No Active Plan",
+      description: plan?.description || "",
+      subscriptionStart: activeSubscription?.startDate,
+      subscriptionEnd: activeSubscription?.endDate,
+      paidFees: activeSubscription?.amountPaid,
+      status: subscriber.status,
+      usage
+    }
+  };
+};
+
+// ===============================
+// Upgrade Subscription (Mock Flow)
+// ===============================
+exports.upgradeSubscription = async (subscriberId, planId) => {
+  const plan = await prisma.plan.findUnique({
+    where: { id: Number(planId) },
+  });
+
+  if (!plan) {
+    throw { status: 404, customMessage: "Plan not found" };
+  }
+
+  // Calculate new end date based on plan duration
+  const startDate = new Date();
+  const endDate = new Date();
+  endDate.setMonth(endDate.getMonth() + plan.durationMonths);
+
+  // Use transaction to ensure atomicity
+  return await prisma.$transaction(async (tx) => {
+    // 1. Expire current active subscription
+    await tx.subscription.updateMany({
+      where: {
+        subscriberId: Number(subscriberId),
+        status: "ACTIVE",
+      },
+      data: {
+        status: "EXPIRED",
+      },
+    });
+
+    // 2. Create new subscription
+    const newSubscription = await tx.subscription.create({
+      data: {
+        subscriberId: Number(subscriberId),
+        planId: plan.id,
+        startDate: startDate,
+        endDate: endDate,
+        amountPaid: plan.paidFees,
+        paymentMethod: "MOCK_UPGRADE", // Placeholder until payment gateway integration
+        status: "ACTIVE",
+      },
+      include: { plan: true },
+    });
+
+    return newSubscription;
   });
 };

@@ -33,11 +33,22 @@ app.use("/cities", require("./routes/city.routes"));
 app.use("/regions", require("./routes/region.routes"));
 app.use("/api/system-settings", require("./routes/systemSettings.routes"));
 app.use("/websites", require("./routes/authorityWebsite.routes"));
+
 app.use("/account-guides", require("./routes/accountGuide.routes"));
+app.use("/account-guide-templates", require("./routes/accountGuideTemplate.routes"));
+
 app.use("/review-guides", require("./routes/reviewGuide.routes"));
+app.use("/review-guide-templates", require("./routes/reviewGuideTemplate.routes"));
+
 app.use("/file-stages", require("./routes/fileStages.routes"));
+app.use("/file-stage-templates", require("./routes/fileStageTemplate.routes"));
+
 app.use("/review-objective-stages", require("./routes/reviewObjectiveStage.routes"));
+app.use("/review-objective-stage-templates", require("./routes/reviewObjectiveStageTemplate.routes"));
+
 app.use("/review-marks-index", require("./routes/reviewMarkIndex.routes"));
+app.use("/review-mark-index-templates", require("./routes/reviewMarkIndexTemplate.routes"));
+
 app.use("/subscribers", require("./routes/subscriber.routes"));
 app.use("/complaints", require("./routes/complaint.routes"));
 app.use("/reports", require("./routes/reports.routes"));

@@ -97,7 +97,7 @@ module.exports = {
 
     await sendOTPEmail(email, otp);
 
-    return { message: "OTP sent successfully" };
+    return { message: "OTP sent successfully", otp };
   },
 
   // ===============================

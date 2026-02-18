@@ -65,3 +65,48 @@ exports.exportPDF = async (req, res, next) => {
     next(err);
   }
 };
+
+//  Get Profile
+exports.getProfile = async (req, res, next) => {
+  try {
+    const subscriberId = req.user.subscriberId;
+
+    if (!subscriberId) {
+      return res.status(400).json({
+        success: false,
+        message: "Subscriber ID is missing from token."
+      });
+    }
+
+    const data = await subscriberService.getSubscriberProfile(subscriberId);
+
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+//  Upgrade Plan (Mock)
+exports.upgrade = async (req, res, next) => {
+  try {
+    const subscriberId = req.user.subscriberId;
+    const { planId } = req.body;
+
+    if (!subscriberId) {
+      return res.status(400).json({
+        success: false,
+        message: "Subscriber ID is missing from token."
+      });
+    }
+
+    if (!planId) {
+      return res.status(400).json({ success: false, message: "Plan ID is required" });
+    }
+
+    const data = await subscriberService.upgradeSubscription(subscriberId, planId);
+
+    res.status(200).json({ success: true, message: "Plan upgraded successfully", data });
+  } catch (err) {
+    next(err);
+  }
+};

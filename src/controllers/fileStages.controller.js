@@ -4,28 +4,28 @@ module.exports = {
 
   create: async (req, res, next) => {
     try {
-      const data = await fileStagesService.create(req.body);
+      const data = await fileStagesService.create(req.body, req.user.subscriberId);
       res.json(data);
     } catch (err) { next(err); }
   },
 
   getAll: async (req, res, next) => {
     try {
-      const result = await fileStagesService.getAll(req.query);
+      const result = await fileStagesService.getAll(req.query, req.user.subscriberId);
       res.json(result);
     } catch (err) { next(err); }
   },
 
   update: async (req, res, next) => {
     try {
-      const data = await fileStagesService.update(req.params.id, req.body);
+      const data = await fileStagesService.update(req.params.id, req.body, req.user.subscriberId);
       res.json(data);
     } catch (err) { next(err); }
   },
 
   delete: async (req, res, next) => {
     try {
-      const result = await fileStagesService.delete(req.params.id);
+      const result = await fileStagesService.delete(req.params.id, req.user.subscriberId);
       res.json(result);
     } catch (err) { next(err); }
   },
@@ -35,21 +35,21 @@ module.exports = {
       if (!req.file) {
         throw { customMessage: "Excel file is required", status: 400 };
       }
-      const result = await fileStagesService.importExcel(req.file);
+      const result = await fileStagesService.importExcel(req.file, req.user.subscriberId);
       res.json(result);
     } catch (err) { next(err); }
   },
 
   exportExcel: async (req, res, next) => {
     try {
-      const { filePath } = await fileStagesService.exportExcel(req.query);
+      const { filePath } = await fileStagesService.exportExcel(req.query, req.user.subscriberId);
       res.download(filePath);
     } catch (err) { next(err); }
   },
 
   exportPDF: async (req, res, next) => {
     try {
-      const { filePath, stream } = await fileStagesService.exportPDF(req.query);
+      const { filePath, stream } = await fileStagesService.exportPDF(req.query, req.user.subscriberId);
       stream.on("finish", () => res.download(filePath));
       stream.on("error", (err) => next(err));
     } catch (err) { next(err); }

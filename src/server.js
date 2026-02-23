@@ -33,7 +33,7 @@ app.use("/cities", require("./routes/city.routes"));
 app.use("/regions", require("./routes/region.routes"));
 app.use("/api/system-settings", require("./routes/systemSettings.routes"));
 app.use("/websites", require("./routes/authorityWebsite.routes"));
-
+ 
 app.use("/account-guides", require("./routes/accountGuide.routes"));
 app.use("/account-guide-templates", require("./routes/accountGuideTemplate.routes"));
 
@@ -50,6 +50,7 @@ app.use("/review-marks-index", require("./routes/reviewMarkIndex.routes"));
 app.use("/review-mark-index-templates", require("./routes/reviewMarkIndexTemplate.routes"));
 
 app.use("/subscribers", require("./routes/subscriber.routes"));
+app.use("/api/branches", require("./routes/branch.routes"));
 app.use("/complaints", require("./routes/complaint.routes"));
 app.use("/reports", require("./routes/reports.routes"));
 app.use("/notifications",  require("./routes/notification.routes"));

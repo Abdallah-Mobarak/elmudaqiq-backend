@@ -13,6 +13,8 @@ model Role {
   users User[]
 }
 
+
+
 model User {
   id       Int     @id @default(autoincrement())
   fullName String
@@ -27,9 +29,29 @@ model User {
 
   subscriberId Int?
   subscriber   Subscriber? @relation(fields: [subscriberId], references: [id])
+  
+  branchId Int?
+  branch   Branch?     @relation("BranchUsers", fields: [branchId], references: [id])
+
+  managedBranch Branch? @relation("BranchManager")
 
   otp          String?
   otpExpiresAt DateTime?
+
+  employeeId        String?
+  jobTitle          String?
+  startDate         DateTime?
+  language          String?
+  timeZone          String?
+  workLocation      String?
+  profilePhoto      String?
+  emailSignature    String?
+  emergencyContact  String?
+  assignedDevices   String?
+  recoveryEmail     String?
+  recoveryPhone     String?
+  suggestedUsername String?
+  permissions       Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -60,6 +82,7 @@ model City {
   countryId Int
   regions   Region[]
 
+  branches    Branch[]
   subscribers Subscriber[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -503,6 +526,7 @@ model Subscriber {
   // ===============================
   // Relation
   // =============================== 
+  branches      Branch[]
   complaints    Complaint[]
   notifications Notification[]
   activityLogs  ActivityLog[]
@@ -633,4 +657,32 @@ model Plan {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum BranchStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Branch {
+  id        Int          @id @default(autoincrement())
+  name      String
+  status    BranchStatus @default(ACTIVE)
+
+  subscriberId Int
+  subscriber   Subscriber @relation(fields: [subscriberId], references: [id])
+
+  cityId Int
+  city   City @relation(fields: [cityId], references: [id])
+
+  managerId Int?     @unique
+  manager   User?    @relation("BranchManager", fields: [managerId], references: [id])
+
+  users User[] @relation("BranchUsers")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([subscriberId])
+  @@index([cityId])
 }

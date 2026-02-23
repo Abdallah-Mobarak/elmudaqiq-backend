@@ -5,16 +5,16 @@ const uploadExcel = require("../middleware/uploadExcel");
 const fileStagesController = require("../controllers/fileStages.controller");
 
 // CRUD
-router.post("/", authMiddleware, adminMiddleware, fileStagesController.create);
-router.get("/", authMiddleware, adminMiddleware, fileStagesController.getAll);
-router.put("/:id", authMiddleware, adminMiddleware, fileStagesController.update);
-router.delete("/:id", authMiddleware, adminMiddleware, fileStagesController.delete);
+router.post("/", authMiddleware, fileStagesController.create);
+router.get("/", authMiddleware, fileStagesController.getAll);
+router.put("/:id", authMiddleware, fileStagesController.update);
+router.delete("/:id", authMiddleware, fileStagesController.delete);
 
 // Import & Export 
 router.post(
   "/import",
   authMiddleware,
-  adminMiddleware,
+  
   uploadExcel.single("file"),
   fileStagesController.importExcel
 );
@@ -22,14 +22,12 @@ router.post(
 router.get(
   "/export/excel",
   authMiddleware,
-  adminMiddleware,
   fileStagesController.exportExcel
 );
 
 router.get(
   "/export/pdf",
   authMiddleware,
-  adminMiddleware,
   fileStagesController.exportPDF
 );
 

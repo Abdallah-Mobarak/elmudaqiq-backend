@@ -47,14 +47,14 @@ module.exports = {
         statement: row.getCell(5)?.value?.toString().trim() || null,
         purpose: row.getCell(6)?.value?.toString().trim() || null,
         responsiblePerson: row.getCell(7)?.value?.toString().trim() || null,
-        datePrepared: row.getCell(8)?.value ? new Date(row.getCell(8).value) : null,
-        dateReviewed: row.getCell(9)?.value ? new Date(row.getCell(9).value) : null,
+        datePrepared: row.getCell(8)?.value && !isNaN(new Date(row.getCell(8).value)) ? new Date(row.getCell(8).value) : null,
+        dateReviewed: row.getCell(9)?.value && !isNaN(new Date(row.getCell(9).value)) ? new Date(row.getCell(9).value) : null,
         conclusion: row.getCell(10)?.value?.toString().trim() || null,
         attachments: row.getCell(11)?.value?.toString().trim() || null,
         notes1: row.getCell(12)?.value?.toString().trim() || null,
         notes2: row.getCell(13)?.value?.toString().trim() || null,
         notes3: row.getCell(14)?.value?.toString().trim() || null,
-      }),
+      }), 
       insertHandler: (row) => prisma.reviewGuideTemplate.create({ data: row })
     });
   },

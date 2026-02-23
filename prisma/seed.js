@@ -16,7 +16,7 @@ async function main() {
     "AUDIT_MANAGER",
     "TECHNICAL_AUDITOR"
   ];
-
+ 
   for (const roleName of roles) {
     const exists = await prisma.role.findUnique({
       where: { name: roleName }

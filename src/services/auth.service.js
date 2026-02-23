@@ -21,7 +21,10 @@ module.exports = {
     const user = await prisma.user.findFirst({
       where: whereClause,
       include: {
-        Role: true
+        Role: true,
+        subscriber: {
+          select: { countryId: true } // Fetch only countryId to keep it fast
+        }
       }
     });
 
@@ -46,7 +49,8 @@ module.exports = {
         id: user.id,
         role: user.Role.name,
         subscriberId: user.subscriberId,
-        mustChangePassword: user.mustChangePassword
+        mustChangePassword: user.mustChangePassword,
+        permissions: user.permissions
 
       },
       process.env.JWT_SECRET,
@@ -64,6 +68,7 @@ module.exports = {
         email: user.email,
         role: user.Role.name,
         subscriberId: user.subscriberId,
+        countryId: user.subscriber ? user.subscriber.countryId : null
       }
     };
   },

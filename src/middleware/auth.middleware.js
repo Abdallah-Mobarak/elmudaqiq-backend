@@ -10,7 +10,13 @@ module.exports = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    req.user = decoded;
+    req.user = {
+      id: decoded.id,
+      role: decoded.role,
+      subscriberId: decoded.subscriberId,
+      branchId: decoded.branchId,
+      mustChangePassword: decoded.mustChangePassword
+    };
 
     //  Force Change Password Check
     if (

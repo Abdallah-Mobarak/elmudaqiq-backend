@@ -18,14 +18,16 @@ module.exports = {
           where: { status: "ACTIVE" },
           include: { plan: true }
         },
-        branches: true
+        _count: {
+          select: { branches: true }
+        }
       }
     });
 
     const activePlan = subscriber.subscriptions[0]?.plan;
     if (!activePlan) throw { status: 400, customMessage: "No active subscription found." };
 
-    if (subscriber.branches.length >= activePlan.branchesLimit) {
+    if (subscriber._count.branches >= activePlan.branchesLimit) {
       throw { status: 403, customMessage: "Branch limit reached. Upgrade your plan." };
     }
 
@@ -44,7 +46,7 @@ module.exports = {
       const branch = await tx.branch.create({
         data: {
           name: data.name,
-          cityId: Number(data.cityId),
+          cityName: data.cityName,
           subscriberId: Number(subscriberId),
           status: "ACTIVE"
         }
@@ -101,10 +103,10 @@ module.exports = {
   // Get All Branches
   // ===============================
   getAll: async (subscriberId, query) => {
-    const { page = 1, limit = 10, search, cityId, status } = query;
+    const { page = 1, limit = 10, search, status } = query;
     
     const where = { subscriberId: Number(subscriberId) };
-  //   // --- التعديل الجديد: Data Scoping ---
+
   // // لو المستخدم مدير فرع، اجبره يشوف فرعه بس
   // if (user.role === ROLES.BRANCH_MANAGER) {
   //   // لازم نكون متأكدين إننا جبنا managedBranchId في التوكن أو نستعلم عنه
@@ -125,10 +127,10 @@ module.exports = {
  
  
     if (status) where.status = status;
-    if (cityId) where.cityId = Number(cityId);
     if (search) {
       where.OR = [
         { name: { contains: search } },
+        { cityName: { contains: search } },
         { manager: { fullName: { contains: search } } }
       ];
     }
@@ -141,7 +143,7 @@ module.exports = {
         skip,
         take: Number(limit),
         include: {
-          city: { include: { country: true } }, // To get country links
+          subscriber: { include: { country: true } },
           manager: {
               select: { id: true, fullName: true, email: true, phone: true, jobTitle: true, startDate: true }
           }
@@ -155,17 +157,35 @@ module.exports = {
       id: b.id,
       name: b.name,
       status: b.status,
-      city: b.city.name,
+      city: b.cityName,
       manager: b.manager,
       externalLinks: {
-          cpa: b.city.country.cpaWebsite,
-          commerce: b.city.country.commerceWebsite,
-          tax: b.city.country.taxWebsite
+          cpa: b.subscriber?.country?.cpaWebsite || null,
+          commerce: b.subscriber?.country?.commerceWebsite || null,
+          tax: b.subscriber?.country?.taxWebsite || null
       },
       createdAt: b.createdAt
     }));
 
     return { data, total, page: Number(page), limit: Number(limit) };
+  },
+
+  // ===============================
+  // Get One Branch
+  // ===============================
+  getOne: async (subscriberId, branchId) => {
+    const branch = await prisma.branch.findFirst({
+      where: { id: Number(branchId), subscriberId: Number(subscriberId) },
+      include: {
+        manager: true,
+        users: true,
+        subscriber: { include: { country: true } }
+      }
+    });
+
+    if (!branch) throw { status: 404, customMessage: "Branch not found" };
+
+    return branch;
   },
 
   // ===============================
@@ -179,7 +199,7 @@ module.exports = {
 
       const updateData = {};
       if (data.name) updateData.name = data.name;
-      if (data.cityId) updateData.cityId = Number(data.cityId);
+      if (data.cityName) updateData.cityName = data.cityName;
       if (data.status) updateData.status = data.status;
 
       // If updating manager details
@@ -198,7 +218,6 @@ module.exports = {
       const updatedBranch = await prisma.branch.update({
           where: { id: Number(branchId) },
           data: updateData,
-          include: { city: { include: { country: true } } }
       });
 
       return updatedBranch;

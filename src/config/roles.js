@@ -1,5 +1,3 @@
-const PERMISSIONS = require('./permissions');
-
 const ROLES = {
   SUBSCRIBER_OWNER: "SUBSCRIBER_OWNER", // Admin of the subscriber
   BRANCH_MANAGER: "BRANCH_MANAGER",     // Implicit role for branch managers
@@ -17,29 +15,4 @@ const ROLES = {
   ARCHIVE: "ARCHIVE",
 };
 
-// Default permissions for each role
-const ROLE_PERMISSIONS = {
-  [ROLES.SECRETARY]: [
-    PERMISSIONS.CREATE_CONTRACT,
-    PERMISSIONS.UPDATE_CONTRACT,
-    PERMISSIONS.VIEW_BRANCHES,
-    PERMISSIONS.VIEW_USERS,
-  ],
-  [ROLES.AUDIT_MANAGER]: [
-    PERMISSIONS.REVIEW_CONTRACT,
-    PERMISSIONS.VIEW_BRANCHES,
-    PERMISSIONS.VIEW_USERS,
-  ],
-  [ROLES.BRANCH_MANAGER]: [
-    PERMISSIONS.VIEW_BRANCHES,
-    PERMISSIONS.UPDATE_BRANCH,
-    PERMISSIONS.VIEW_USERS,
-    PERMISSIONS.CREATE_USER
-  ]
-  // ... You can add more defaults here later
-};
-
-module.exports = {
-  ROLES,
-  ROLE_PERMISSIONS
-};
+module.exports = { ROLES };

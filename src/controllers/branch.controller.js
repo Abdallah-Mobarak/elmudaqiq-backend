@@ -18,6 +18,15 @@ exports.getBranches = async (req, res, next) => {
   }
 };
 
+exports.getBranch = async (req, res, next) => {
+  try {
+    const result = await branchService.getOne(req.user.subscriberId, req.params.id);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.updateBranch = async (req, res, next) => {
   try {
     const result = await branchService.update(req.user.subscriberId, req.params.id, req.body);

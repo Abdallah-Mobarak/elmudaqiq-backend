@@ -48,8 +48,9 @@ app.use("/review-objective-stage-templates", require("./routes/reviewObjectiveSt
 
 app.use("/review-marks-index", require("./routes/reviewMarkIndex.routes"));
 app.use("/review-mark-index-templates", require("./routes/reviewMarkIndexTemplate.routes"));
-
+ 
 app.use("/subscribers", require("./routes/subscriber.routes"));
+app.use("/users", require("./routes/user.routes"));
 app.use("/api/branches", require("./routes/branch.routes"));
 app.use("/complaints", require("./routes/complaint.routes"));
 app.use("/reports", require("./routes/reports.routes"));
@@ -58,7 +59,7 @@ app.use("/activity-logs", require("./routes/activityLog.routes"));
 app.use("/kpi", require("./routes/kpi.routes"));
 app.use("/plans", require("./routes/plan.routes"));
 
-
+  
 // Error Handler (ALWAYS LAST)
 app.use(errorMiddleware);
  

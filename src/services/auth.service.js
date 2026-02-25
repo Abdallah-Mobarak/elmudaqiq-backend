@@ -23,7 +23,9 @@ module.exports = {
       include: {
         Role: true,
         subscriber: {
-          select: { countryId: true } // Fetch only countryId to keep it fast
+          select: {
+            country: { select: { name: true } } // Fetch country name via relation
+          }
         }
       }
     });
@@ -49,8 +51,8 @@ module.exports = {
         id: user.id,
         role: user.Role.name,
         subscriberId: user.subscriberId,
+        branchId: user.branchId,
         mustChangePassword: user.mustChangePassword,
-        permissions: user.permissions
 
       },
       process.env.JWT_SECRET,
@@ -68,7 +70,7 @@ module.exports = {
         email: user.email,
         role: user.Role.name,
         subscriberId: user.subscriberId,
-        countryId: user.subscriber ? user.subscriber.countryId : null
+        countryName: user.subscriber?.country?.name || null
       }
     };
   },

@@ -1,20 +1,17 @@
-const { ROLE_PERMISSIONS, ROLES } = require('../config/roles');
+const { PrismaClient } = require("@prisma/client");
+const { ROLE_PERMISSIONS } = require('../config/rolePermissions');
+const { ROLES } = require('../config/roles');
+
+const prisma = new PrismaClient();
 
 const requirePermission = (permission) => {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     try {
       const user = req.user;
 
       if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-
-      // --- DEBUG LOGS (Remove in Production) ---
-      console.log("🔍 Permission Check Debug:");
-      console.log("👉 User Role:", user.role);
-      console.log("👉 Required Permission:", permission);
-      console.log("👉 Available Permissions for Role:", ROLE_PERMISSIONS[user.role]);
-      // -----------------------------------------
 
       // 1. SUBSCRIBER_OWNER has full access automatically
       if (user.role === ROLES.SUBSCRIBER_OWNER) {
@@ -24,17 +21,20 @@ const requirePermission = (permission) => {
       // 2. Get permissions from Role
       const rolePermissions = ROLE_PERMISSIONS[user.role] || [];
 
-      // 3. Get permissions from User override (if any)
-      let userPermissions = [];
-      if (user.permissions) {
-          // Handle if permissions is stored as string or object
-          userPermissions = typeof user.permissions === 'string' 
-            ? JSON.parse(user.permissions) 
-            : user.permissions;
+      // 3. Check if permission exists in Role (Fast check)
+      if (rolePermissions.includes("ALL_ACCESS") || rolePermissions.includes(permission)) {
+        return next();
       }
 
-      // 4. Check if permission exists in either Role or User overrides
-      if (rolePermissions.includes(permission) || (Array.isArray(userPermissions) && userPermissions.includes(permission))) {
+      // 4. If not in Role, Check User Overrides from DB (Dynamic Fetch)
+      const dbUser = await prisma.user.findUnique({
+        where: { id: Number(user.id) },
+        select: { permissions: true }
+      });
+
+      const userPermissions = dbUser?.permissions ? (typeof dbUser.permissions === 'string' ? JSON.parse(dbUser.permissions) : dbUser.permissions) : [];
+
+      if (Array.isArray(userPermissions) && userPermissions.includes(permission)) {
         return next();
       }
 

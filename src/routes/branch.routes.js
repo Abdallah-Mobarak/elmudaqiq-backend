@@ -20,6 +20,12 @@ router.get(
   branchController.getBranches
 );
 
+router.get(
+  "/:id",
+  requirePermission(PERMISSIONS.VIEW_BRANCHES),
+  branchController.getBranch
+);
+
 router.put(
   "/:id",
   requirePermission(PERMISSIONS.UPDATE_BRANCH),

@@ -44,7 +44,7 @@ module.exports.sendSubscriberWelcomeEmail = async ({ to, loginUrl, email, tempPa
       subject: "Welcome to Al-Mudaqiq - Your Account Details",
       html: `
         <h1>Welcome to Al-Mudaqiq</h1>
-        <p>Your subscription has been created successfully.</p>
+        <p>Your email has been created successfully.</p>
         <p><strong>Login URL:</strong> <a href="${loginUrl}">${loginUrl}</a></p>
         <p><strong>Email:</strong> ${email}</p>
         <p><strong>Temporary Password:</strong> ${tempPassword}</p>

@@ -91,7 +91,11 @@ module.exports = {
 
     // 7. Send Activation Email
     try {
-      const loginUrl = `https://${subscriber.subdomain}.almudaqiq.com`;
+      // Construct dynamic URL based on environment
+      const baseDomain = process.env.BASE_DOMAIN || "mudqiq.com";
+      const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+      const loginUrl = `${protocol}://${subscriber.subdomain}.${baseDomain}`;
+
       await sendSubscriberWelcomeEmail({ to: data.email, loginUrl, email: data.email, tempPassword });
     } catch (e) { console.error("Failed to send user welcome email", e); }
 

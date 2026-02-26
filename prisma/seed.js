@@ -143,7 +143,7 @@ async function main() {
     });
     console.log("✅ Master Review Mark Index Templates seeded");
   }
-}
+} 
 
 main()
   .catch(console.error)

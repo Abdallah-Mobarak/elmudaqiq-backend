@@ -84,7 +84,11 @@ module.exports = {
 
       // D. Send Invite Email (Temp Password approach for now)
       try {
-          const loginUrl = `http://${subscriber.subdomain}.almudaqiq.com`; 
+          // Construct dynamic URL based on environment
+          const baseDomain = process.env.BASE_DOMAIN || "mudqiq.com";
+          const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+          const loginUrl = `${protocol}://${subscriber.subdomain}.${baseDomain}`;
+
           await sendSubscriberWelcomeEmail({
               to: data.managerEmail,
               loginUrl,

@@ -366,9 +366,13 @@ exports.create = async (data, files) => {
   // We wrap this in try/catch so file upload and response don't fail if email fails
   let emailStatus = "SENT";
   try {
-    // التعديل: تكوين الرابط الكامل هنا لإرساله في الإيميل
-    // يفضل وضع الدومين الأساسي في متغير بيئة (process.env.BASE_DOMAIN)
-    const loginUrl = `http://${result.subscriber.subdomain}.mudqiq.com`; 
+    // Construct dynamic URL based on environment
+    // Use env variable for base domain, fallback to localhost if missing
+    const baseDomain = process.env.BASE_DOMAIN || "localhost:4000";
+    // Use https for production, http for local
+    const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+    
+    const loginUrl = `${protocol}://${result.subscriber.subdomain}.${baseDomain}`;
     
     await sendSubscriberWelcomeEmail({
       to: data.subscriberEmail,

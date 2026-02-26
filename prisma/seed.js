@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 async function main() {
 
   // ===============================
-  // 1 Seed Roles
+  // 1 Seed Roles 
   // ===============================
   const roles = [
     "ADMIN",

@@ -24,8 +24,56 @@ module.exports = {
     });
   },
 
-  getAll: async () => {
-    return prisma.reviewGuideTemplate.findMany({ orderBy: { id: 'asc' } });
+  getAll: async (filters = {}) => {
+    const { page = 1, limit = 20, search, level, id, number, statement, responsiblePerson } = filters;
+    
+    const pageNum = Number(page) > 0 ? Number(page) : 1;
+    const take = Number(limit) > 0 ? Number(limit) : 20;
+    const skip = (pageNum - 1) * take;
+
+    const where = {};
+
+    if (id) where.id = Number(id);
+    if (level) where.level = { contains: level };
+    if (number) where.number = { contains: number };
+    if (statement) where.statement = { contains: statement };
+    if (responsiblePerson) where.responsiblePerson = { contains: responsiblePerson };
+
+    if (search) {
+      const s = String(search);
+      where.OR = [
+        { level: { contains: s } },
+        { number: { contains: s } },
+        { statement: { contains: s } },
+        { purpose: { contains: s } },
+        { responsiblePerson: { contains: s } },
+        { conclusion: { contains: s } },
+        { attachments: { contains: s } },
+        { notes1: { contains: s } },
+        { notes2: { contains: s } },
+        { notes3: { contains: s } }
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      prisma.reviewGuideTemplate.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { id: 'asc' }
+      }),
+      prisma.reviewGuideTemplate.count({ where })
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: take,
+        totalPages: Math.ceil(total / take)
+      }
+    };
   },
 
   update: async (id, data) => {

@@ -10,9 +10,11 @@ module.exports = {
 
   getAll: async (req, res, next) => {
     try {
-      const result = await service.getAll();
+      const result = await service.getAll(req.query);
       res.json(result);
-    } catch (err) { next(err); }
+    } catch (err) {
+      next(err);
+    }
   },
 
   update: async (req, res, next) => {

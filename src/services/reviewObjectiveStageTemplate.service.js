@@ -25,8 +25,43 @@ module.exports = {
     });
   },
 
-  getAll: async () => {
-    return prisma.reviewObjectiveStageTemplate.findMany({ orderBy: { id: 'asc' } });
+  getAll: async (filters = {}) => {
+    const { page = 1, limit = 20, search, codesCollected } = filters;
+
+    const pageNum = Number(page) > 0 ? Number(page) : 1;
+    const take = Number(limit) > 0 ? Number(limit) : 20;
+    const skip = (pageNum - 1) * take;
+
+    const where = {};
+
+    if (codesCollected) where.codesCollected = { contains: codesCollected };
+
+    if (search) {
+      const s = String(search);
+      where.OR = [
+        { codesCollected: { contains: s } },
+        { codeOfEthics: { contains: s } },
+        { policies: { contains: s } },
+        { ifrs: { contains: s } },
+        { ias: { contains: s } },
+        { notes: { contains: s } }
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      prisma.reviewObjectiveStageTemplate.findMany({ where, skip, take, orderBy: { id: 'asc' } }),
+      prisma.reviewObjectiveStageTemplate.count({ where })
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: take,
+        totalPages: Math.ceil(total / take)
+      }
+    };
   },
 
   update: async (id, data) => {

@@ -34,8 +34,49 @@ module.exports = {
     });
   },
 
-  getAll: async () => {
-    return prisma.fileStageTemplate.findMany({ orderBy: { id: 'asc' } });
+  getAll: async (filters = {}) => {
+    const { page = 1, limit = 20, search, stageCode, stage, entityType } = filters;
+    
+    const pageNum = Number(page) > 0 ? Number(page) : 1;
+    const take = Number(limit) > 0 ? Number(limit) : 20;
+    const skip = (pageNum - 1) * take;
+
+    const where = {};
+
+    if (stageCode) where.stageCode = { contains: stageCode };
+    if (stage) where.stage = { contains: stage };
+    if (entityType) where.entityType = { contains: entityType };
+
+    if (search) {
+      const s = String(search);
+      where.OR = [
+        { stageCode: { contains: s } },
+        { stage: { contains: s } },
+        { entityType: { contains: s } },
+        { procedure: { contains: s } },
+        { detailedExplanation: { contains: s } }
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      prisma.fileStageTemplate.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { id: 'asc' }
+      }),
+      prisma.fileStageTemplate.count({ where })
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: take,
+        totalPages: Math.ceil(total / take)
+      }
+    };
   },
 
   update: async (id, data) => {

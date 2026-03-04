@@ -3,6 +3,94 @@ const prisma = new PrismaClient();
 const importExcelUtil = require("../utils/fileHandlers/importExcel");
 const exportExcelUtil = require("../utils/fileHandlers/exportExcel");
 
+function treeSortAccountNumbers(data) {
+  // Handle empty data
+  if (!data || data.length === 0) return [];
+
+  // Step 1: Convert each item to a node (use ID as unique key to preserve all records)
+  const nodes = data.map(item => ({
+    ...item,
+    children: [],
+    _key: String(item.accountNumber) // For parent lookup
+  }));
+
+  // Step 2: Create a map for quick parent lookup (accountNumber -> array of nodes with that number)
+  const accountNumberMap = new Map();
+  nodes.forEach(node => {
+    const key = node._key;
+    if (!accountNumberMap.has(key)) {
+      accountNumberMap.set(key, []);
+    }
+    accountNumberMap.get(key).push(node);
+  });
+
+  // Step 3: Link each element to its closest parent (based on accountNumber as string)
+  const roots = [];
+  nodes.forEach(node => {
+    let parentFound = false;
+    const key = node._key;
+
+    // Find the closest parent (longest existing prefix)
+    for (let i = key.length - 1; i > 0; i--) {
+      const parentKey = key.slice(0, i);
+      if (accountNumberMap.has(parentKey)) {
+        // Add to the first parent found (or could add to all parents if needed)
+        const parents = accountNumberMap.get(parentKey);
+        if (parents.length > 0) {
+          parents[0].children.push(node);
+          parentFound = true;
+          break;
+        }
+      }
+    }
+
+    if (!parentFound) {
+      roots.push(node);
+    }
+  });
+
+  // Step 4: Sort each level numerically
+  function sortTree(nodes) {
+    nodes.sort((a, b) => {
+      const aNum = String(a.accountNumber);
+      const bNum = String(b.accountNumber);
+      
+      // First compare by accountNumber length (shorter = parent)
+      if (aNum.length !== bNum.length) {
+        return aNum.length - bNum.length;
+      }
+      
+      // Then compare numerically
+      const numCompare = aNum.localeCompare(bNum, undefined, { numeric: true });
+      if (numCompare !== 0) {
+        return numCompare;
+      }
+      
+      // If same accountNumber, sort by ID to maintain stable order
+      return a.id - b.id;
+    });
+
+    nodes.forEach(n => sortTree(n.children));
+  }
+
+  sortTree(roots);
+
+  // Step 5: Flatten the tree into a single array
+  const result = [];
+  function flatten(nodes) {
+    nodes.forEach(n => {
+      // Remove children and _key from final result
+      const { children, _key, ...nodeWithoutChildren } = n;
+      result.push(nodeWithoutChildren);
+      flatten(children);
+    });
+  }
+
+  flatten(roots);
+
+  return result;
+}
+
 module.exports = {
   create: async (data) => {
     return prisma.accountGuideTemplate.create({
@@ -26,10 +114,60 @@ module.exports = {
     });
   },
 
-  getAll: async () => {
-    return prisma.accountGuideTemplate.findMany({
-      orderBy: { accountNumber: 'asc' }
+  getAll: async (filters = {}) => {
+    const { page = 1, limit = 20, search, level, id } = filters;
+
+    const pageNum = Math.max(1, Number(page) || 1);
+    const take = Math.max(1, Number(limit) || 20);
+    const skip = (pageNum - 1) * take;
+
+    const where = {};
+
+    if (id) where.id = Number(id);
+    if (level) where.level = level;
+
+    if (search) {
+      const s = String(search);
+      const searchConditions = [
+        { level: { contains: s } },
+        { accountName: { contains: s } },
+        { rulesAndRegulations: { contains: s } },
+        { disclosureNotes: { contains: s } },
+        { code1: { contains: s } },
+        { code2: { contains: s } },
+        { code3: { contains: s } },
+        { code4: { contains: s } },
+        { code5: { contains: s } },
+        { code6: { contains: s } },
+        { code7: { contains: s } },
+        { code8: { contains: s } },
+        { objectiveCode: { contains: s } },
+        { relatedObjectives: { contains: s } }
+      ];
+
+      const searchNumber = Number(s);
+      if (!isNaN(searchNumber)) {
+        searchConditions.push({ accountNumber: { equals: searchNumber } });
+      }
+
+      where.OR = searchConditions;
+    }
+
+    const allData = await prisma.accountGuideTemplate.findMany({
+      where,
+      orderBy: { id: 'asc' }
     });
+
+    const sortedData = treeSortAccountNumbers(allData);
+    const paginatedData = sortedData.slice(skip, skip + take);
+
+    return {
+      data: paginatedData,
+      total: sortedData.length,
+      page: pageNum,
+      limit: take,
+      totalPages: Math.ceil(sortedData.length / take)
+    };
   },
 
   update: async (id, data) => {

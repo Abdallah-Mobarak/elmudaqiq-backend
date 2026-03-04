@@ -24,7 +24,8 @@ module.exports = {
         Role: true,
         subscriber: {
           select: {
-            country: { select: { name: true } } // Fetch country name via relation
+            country: { select: { name: true } }, // Fetch country name via relation
+            factoryLogo: true
           }
         }
       }
@@ -70,7 +71,8 @@ module.exports = {
         email: user.email,
         role: user.Role.name,
         subscriberId: user.subscriberId,
-        countryName: user.subscriber?.country?.name || null
+        countryName: user.subscriber?.country?.name || null,
+        factoryLogo: user.subscriber?.factoryLogo || null
       }
     };
   },

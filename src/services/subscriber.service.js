@@ -140,7 +140,7 @@ exports.create = async (data, files) => {
     );
   }
 
-  const subdomain = await generateUniqueSubdomain(data.licenseName);
+  const subdomain = await generateUniqueSubdomain(data.ownersNames);
 
   // START TRANSACTION
   const result = await prisma.$transaction(async (tx) => {
@@ -225,7 +225,7 @@ exports.create = async (data, files) => {
 
     await tx.user.create({
       data: {
-        fullName: `${data.licenseName} Owner`,
+        fullName: data.ownersNames,
         email: data.subscriberEmail,
         password: hashedPassword,
         phone: data.primaryMobile,
@@ -368,7 +368,7 @@ exports.create = async (data, files) => {
   try {
     // Construct dynamic URL based on environment
     // Use env variable for base domain, fallback to localhost if missing
-    const baseDomain = process.env.BASE_DOMAIN || "localhost:4000";
+    const baseDomain = process.env.BASE_DOMAIN || "mudqiq.com";
     // Use https for production, http for local
     const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
     

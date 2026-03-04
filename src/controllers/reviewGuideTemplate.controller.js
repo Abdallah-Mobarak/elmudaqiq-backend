@@ -6,7 +6,12 @@ module.exports = {
   },
 
   getAll: async (req, res, next) => {
-    try { res.json(await service.getAll()); } catch (err) { next(err); }
+    try {
+      const result = await service.getAll(req.query);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
   },
 
   update: async (req, res, next) => {

@@ -25,8 +25,48 @@ module.exports = {
     });
   },
 
-  getAll: async () => {
-    return prisma.reviewMarkIndexTemplate.findMany({ orderBy: { id: 'asc' } });
+  getAll: async (filters = {}) => {
+    const { page = 1, limit = 20, search, suggestedStage, sectorTags, severityLevel } = filters;
+    
+    const pageNum = Number(page) > 0 ? Number(page) : 1;
+    const take = Number(limit) > 0 ? Number(limit) : 20;
+    const skip = (pageNum - 1) * take;
+
+    const where = {};
+
+    if (suggestedStage) where.suggestedStage = { contains: suggestedStage };
+    if (sectorTags) where.sectorTags = { contains: sectorTags };
+    if (severityLevel) where.severityLevel = Number(severityLevel);
+
+    if (search) {
+      const s = String(search);
+      where.OR = [
+        { name: { contains: s } },
+        { shortDescription: { contains: s } },
+        { assertion: { contains: s } },
+        { benchmark: { contains: s } }
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      prisma.reviewMarkIndexTemplate.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { id: 'asc' }
+      }),
+      prisma.reviewMarkIndexTemplate.count({ where })
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: take,
+        totalPages: Math.ceil(total / take)
+      }
+    };
   },
 
   update: async (id, data) => {

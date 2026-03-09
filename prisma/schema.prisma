@@ -30,6 +30,11 @@ model User {
   subscriberId Int?
   subscriber   Subscriber? @relation(fields: [subscriberId], references: [id])
   
+  contractsCreated EngagementContract[] @relation("CreatedContracts")
+  contractsManaged EngagementContract[] @relation("AuditManagerContracts")
+  contractStaffAssignments ContractStaff[]
+  uploadedContractDocuments ContractDocument[]
+  
   branchId Int?
   branch   Branch?     @relation("BranchUsers", fields: [branchId], references: [id])
 
@@ -57,6 +62,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   activityLogs ActivityLog[]
+  notifications Notification[]
 
   @@unique([email, subscriberId])
 }
@@ -533,6 +539,7 @@ model Subscriber {
   payments      Payment[]
   users         User[]
   subscriptions Subscription[]
+  engagementContracts EngagementContract[]
   accountGuides AccountGuide[]
   reviewGuides  ReviewGuide[]
   fileStages    FileStage[]
@@ -584,6 +591,10 @@ model Notification {
   // Subscriber Notification  
   subscriberId Int?
   subscriber   Subscriber? @relation(fields: [subscriberId], references: [id])
+
+  // User Notification (Specific Recipient)
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id])
 
   // Admin Notification 
   isRead Boolean @default(false)
@@ -678,9 +689,152 @@ model Branch {
   manager   User?    @relation("BranchManager", fields: [managerId], references: [id])
 
   users User[] @relation("BranchUsers")
+  engagementContracts EngagementContract[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
   @@index([subscriberId])
+}
+
+// ===============================
+// Engagement Contract
+// ===============================
+
+enum EngagementContractStatus {
+  INACTIVE
+  ACTIVE
+  ARCHIVE
+}
+
+model EngagementContract {
+  id String @id @default(uuid())
+  
+  // --- Basic Data ---
+  contractNumber String // Generated: 00 + Serial
+  legalEntity String 
+  legalEntityType String 
+  articlesOfAssociation String? 
+  nationality String
+  customerName String
+  commercialRegisterNumber String
+  taxNumber String
+  vatCertificate String? 
+  unifiedNumber String
+  unifiedNumberCertificate String? 
+  commercialRegisterActivity String? 
+  commercialRegisterDate DateTime
+  commercialRegisterDateHijri String?
+  engagementContractDate DateTime
+  
+  // --- Facility Address ---
+  postalCode String
+  address String
+  email String
+  region String
+  
+  // --- Customer Portal ---
+  contactPersonName String
+  contactPhone String
+  whatsappPhone String
+  
+  // --- Technical Allocation Data ---
+  facilityLink String?
+  facilityLogo String? 
+  language String?
+  currency String?
+  
+  // --- Workflow & Status ---
+  status EngagementContractStatus @default(INACTIVE)
+  managerComments String? 
+
+  // --- Relations ---
+  subscriberId Int
+  subscriber Subscriber @relation(fields: [subscriberId], references: [id])
+  
+  branchId Int?
+  branch Branch? @relation(fields: [branchId], references: [id]) // Ensure Branch model has opposite relation 'engagementContracts'
+
+  createdById Int
+  createdBy User @relation("CreatedContracts", fields: [createdById], references: [id])
+  
+  auditManagerId Int?
+  auditManager User? @relation("AuditManagerContracts", fields: [auditManagerId], references: [id])
+
+  assignedStaff ContractStaff[]
+  reviewGuides  ContractReviewGuide[]
+  documents     ContractDocument[]
+
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([subscriberId])
+  @@index([commercialRegisterNumber])
+  @@index([branchId])
+  // Prevent duplicate contracts for the same CR and Date (Exact match constraint)
+  @@unique([subscriberId, commercialRegisterNumber, engagementContractDate])
+}
+
+
+model ContractStaff {
+  id String @id @default(uuid())
+  
+  contractId String
+  contract EngagementContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  userId Int
+  user User @relation(fields: [userId], references: [id])
+
+  role String // Assistant Technical Auditor, Field Auditor, Contact Person
+
+  assignedAt DateTime @default(now())
+  
+  @@unique([contractId, userId]) // الموظف يعين مرة واحدة على العقد
+}
+
+
+model ContractReviewGuide {
+  id String @id @default(uuid())
+
+  contractId String
+  contract EngagementContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  // نسخ البيانات من القالب الأصلي (Snapshot)
+  level String?
+  separator String?
+  number String?
+  statement String?
+  purpose String?
+  
+  // حقول الإجراءات للمدير
+  isApplicable Boolean? // Yes / No
+  conclusion String?
+  
+  datePrepared DateTime?
+  dateReviewed DateTime?
+
+  documents ContractDocument[] // Relation to documents specific to this guide item
+  updatedAt DateTime @updatedAt
+
+  @@index([contractId])
+}
+
+model ContractDocument {
+  id String @id @default(uuid())
+
+  contractId String
+  contract EngagementContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  reviewGuideId String?
+  reviewGuide ContractReviewGuide? @relation(fields: [reviewGuideId], references: [id]) // Optional link to specific guide item
+
+  fileName String
+  filePath String
+  fileType String
+  
+  uploadedById Int
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+
+  createdAt DateTime @default(now())
 }

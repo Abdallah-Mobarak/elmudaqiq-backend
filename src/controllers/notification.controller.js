@@ -25,6 +25,16 @@ module.exports = {
     }
   },
 
+  // Get logged-in user notifications
+  getMyNotifications: async (req, res, next) => {
+    try {
+      const data = await notificationService.getUserNotifications(req.user.id);
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   // Mark notification as read
   markAsRead: async (req, res, next) => {
     try {

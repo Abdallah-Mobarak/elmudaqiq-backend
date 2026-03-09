@@ -5,7 +5,7 @@ module.exports = {
 
   // Create manual notification (Admin)
   create: async (data) => {
-    const { title, message, subscriberId, type } = data;
+    const { title, message, subscriberId, userId, type } = data;
 
     if (!title || !message || !type) {
       throw { status: 400, message: "title, message and type are required" };
@@ -17,6 +17,7 @@ module.exports = {
         message,
         type,
         subscriberId: subscriberId ? Number(subscriberId) : null,
+        userId: userId ? Number(userId) : null,
       },
     });
   },
@@ -33,6 +34,16 @@ module.exports = {
           },
         },
       },
+    });
+  },
+
+  // Get notifications for a specific user
+  getUserNotifications: async (userId) => {
+    return prisma.notification.findMany({
+      where: {
+        userId: Number(userId)
+      },
+      orderBy: { createdAt: "desc" }
     });
   },
 

@@ -19,6 +19,13 @@ router.get(
   notificationController.getAll
 );
 
+// Get MY notifications (Logged in user)
+router.get(
+  "/mine",
+  authMiddleware,
+  notificationController.getMyNotifications
+);
+
 // Mark notification as read
 router.patch(
   "/:id/read",

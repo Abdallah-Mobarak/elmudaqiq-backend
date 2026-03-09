@@ -1,13 +1,12 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
-const { PrismaClient } = require("@prisma/client");
+const prisma = require("./config/prisma");
 const chalk = require("chalk");
 
 dotenv.config();
 
 const app = express();
-const prisma = new PrismaClient();
 const errorMiddleware = require("./middleware/error.middleware");
 
 app.use(express.urlencoded({ extended: true }));
@@ -31,6 +30,8 @@ require("./cron/renewalNotifications.job");
 app.use("/countries", require("./routes/country.routes"));
 app.use("/cities", require("./routes/city.routes"));
 app.use("/regions", require("./routes/region.routes"));
+app.use("/engagement-contracts", require("./routes/engagementContract.routes"));
+app.use("/contract-review-guides", require("./routes/contractReviewGuide.routes"));
 app.use("/api/system-settings", require("./routes/systemSettings.routes"));
 app.use("/websites", require("./routes/authorityWebsite.routes"));
  

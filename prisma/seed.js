@@ -4,7 +4,7 @@ const bcrypt = require("bcryptjs");
 const prisma = new PrismaClient();
 
 async function main() {
-
+ 
   // ===============================
   // 1 Seed Roles 
   // ===============================
@@ -14,7 +14,10 @@ async function main() {
     "BRANCH_MANAGER",
     "SECRETARY",
     "AUDIT_MANAGER",
-    "TECHNICAL_AUDITOR"
+    "TECHNICAL_AUDITOR",
+    "ASSISTANT_TECHNICAL_AUDITOR",
+    "FIELD_AUDITOR",
+    "CONTACT_PERSON"
   ];
  
   for (const roleName of roles) {

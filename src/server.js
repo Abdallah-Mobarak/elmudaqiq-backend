@@ -24,9 +24,6 @@ const authRoutes = require("./routes/auth.routes");
 app.use("/auth", authRoutes);
 require("./cron/renewalNotifications.job");
 
-
-
-
 app.use("/countries", require("./routes/country.routes"));
 app.use("/cities", require("./routes/city.routes"));
 app.use("/regions", require("./routes/region.routes"));

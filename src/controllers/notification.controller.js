@@ -33,7 +33,7 @@ module.exports = {
     } catch (err) {
       next(err);
     }
-  },
+  }, 
 
   // Mark notification as read
   markAsRead: async (req, res, next) => {

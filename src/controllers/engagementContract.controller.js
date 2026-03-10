@@ -84,6 +84,17 @@ exports.review = async (req, res, next) => {
   }
 };
 
+// ===============================
+// Get Eligible Staff
+// ===============================
+exports.getEligibleStaff = async (req, res, next) => {
+  try {
+    const staff = await engagementContractService.getEligibleStaff(req.user, req.params.id);
+    res.status(200).json({ data: staff });
+  } catch (error) {
+    next(error);
+  }
+};
 
 // ===============================
 // Assign Staff (Audit Manager)

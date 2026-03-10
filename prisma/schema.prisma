@@ -790,7 +790,7 @@ model ContractStaff {
 
   assignedAt DateTime @default(now())
   
-  @@unique([contractId, userId]) // الموظف يعين مرة واحدة على العقد
+  @@unique([contractId, userId, role]) 
 }
 
 

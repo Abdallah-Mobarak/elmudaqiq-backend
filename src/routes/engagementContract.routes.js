@@ -55,6 +55,13 @@ router.patch(
   controller.review
 );
 
+// Get Eligible Staff for Assignment
+router.get(
+  "/:id/eligible-staff",
+  requirePermission(PERMISSIONS.MANAGE_CONTRACT_STAFF),
+  controller.getEligibleStaff
+);
+
 // Assign Staff (Audit Manager & Technical Auditor)
 router.post(
   "/:id/assign-staff",

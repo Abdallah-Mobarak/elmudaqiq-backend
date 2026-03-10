@@ -392,9 +392,43 @@ module.exports = {
   },
 
   // ===============================
+  // Get Eligible Staff for Assignment
+  // ===============================
+  getEligibleStaff: async (user, contractId) => {
+    const contract = await prisma.engagementContract.findUnique({
+      where: { id: contractId },
+      select: { id: true, branchId: true, subscriberId: true }
+    });
+
+    if (!contract) throw { status: 404, customMessage: "Contract not found" };
+
+    // Security Check
+    if (contract.subscriberId !== Number(user.subscriberId)) {
+      throw { status: 403, customMessage: "Unauthorized" };
+    }
+
+    // Fetch users who are in the SAME branch AND have one of the allowed roles
+    const eligibleUsers = await prisma.user.findMany({
+      where: {
+        subscriberId: contract.subscriberId,
+        branchId: contract.branchId, // Rule 1: Same Branch
+        Role: {
+          name: {
+            in: [ROLES.ASSISTANT_TECHNICAL_AUDITOR, ROLES.FIELD_AUDITOR, ROLES.CONTACT_PERSON] // Rule 3: Specific Roles
+          }
+        },
+        status: "active"
+      },
+      select: { id: true, fullName: true, email: true, jobTitle: true, Role: { select: { name: true } } }
+    });
+
+    return eligibleUsers;
+  },
+
+  // ===============================
   // Assign Staff (Audit Manager)
   // ===============================
-  assignStaff: async (user, contractId, staffData) => {
+  assignStaff: async (user, contractId, payload) => {
     const contract = await prisma.engagementContract.findUnique({
       where: { id: contractId }
     });
@@ -416,61 +450,82 @@ module.exports = {
       };
     }
 
-    // Validate Staff exists and belongs to same subscriber
-    const staffUser = await prisma.user.findFirst({
-      where: {
-        id: staffData.userId,
-        subscriberId: Number(user.subscriberId)
-      }
-    });
+    // Support Bulk Assignment (Array) or Single Object
+    const assignments = Array.isArray(payload) ? payload : [payload];
+    const results = [];
 
-    if (!staffUser) {
-      throw { status: 404, customMessage: "Staff user not found in your organization" };
+    for (const item of assignments) {
+      // Validate Staff exists and belongs to same subscriber
+      const staffUser = await prisma.user.findFirst({
+        where: {
+          id: item.userId,
+          subscriberId: Number(user.subscriberId)
+        }
+      });
+
+      if (!staffUser) {
+        throw { status: 404, customMessage: `Staff user (ID: ${item.userId}) not found.` };
+      }
+
+      // Rule 1 Validation: Check if staff is in the same branch
+      if (staffUser.branchId !== contract.branchId) {
+        throw { status: 400, customMessage: `Staff member ${staffUser.fullName} must belong to the same branch.` };
+      }
+
+      // Validation: Ensure the role being assigned is one of the allowed roles
+      const allowedRoles = [
+        ROLES.ASSISTANT_TECHNICAL_AUDITOR,
+        ROLES.FIELD_AUDITOR,
+        ROLES.CONTACT_PERSON
+      ];
+
+      if (!allowedRoles.includes(item.role)) {
+        throw {
+          status: 400,
+          customMessage: `Invalid role for ${staffUser.fullName}. Allowed: ${allowedRoles.join(", ")}.`
+        };
+      }
+
+      // Check if already assigned this specific role (to avoid duplicate error)
+      const exists = await prisma.contractStaff.findFirst({
+        where: { contractId, userId: item.userId, role: item.role }
+      });
+      
+      if (exists) {
+         throw { status: 400, customMessage: `${staffUser.fullName} is already assigned as ${item.role}.` };
+      }
+
+      // Create assignment
+      const newAssignment = await prisma.contractStaff.create({
+        data: {
+          contractId,
+          userId: item.userId,
+          role: item.role
+        }
+      });
+
+      // Log to Audit Trail
+      await activityLogService.create({
+        userId: user.id,
+        subscriberId: Number(user.subscriberId),
+        userType: "SUBSCRIBER",
+        action: "ASSIGN_STAFF",
+        message: `Assigned ${staffUser.fullName} as ${item.role} to Contract ${contract.contractNumber}`
+      });
+
+      // --- NOTIFICATION LOGIC ---
+      await notificationService.create({
+        title: "New Assignment",
+        message: `You have been assigned as ${item.role} to Contract ${contract.contractNumber}.`,
+        type: "WORKFLOW",
+        subscriberId: Number(user.subscriberId),
+        userId: item.userId
+      });
+
+      results.push(newAssignment);
     }
 
-    // Validation: Ensure the role being assigned is one of the allowed roles
-    const allowedRoles = [
-      ROLES.ASSISTANT_TECHNICAL_AUDITOR,
-      ROLES.FIELD_AUDITOR,
-      ROLES.CONTACT_PERSON
-    ];
-
-    if (!allowedRoles.includes(staffData.role)) {
-      throw {
-        status: 400,
-        customMessage: `Invalid role. Can only assign: ${allowedRoles.join(", ")}.`
-      };
-    }
-
-    // Create assignment (Prisma will throw error if unique constraint contractId_userId is violated)
-    const newAssignment = await prisma.contractStaff.create({
-      data: {
-        contractId,
-        userId: staffData.userId,
-        role: staffData.role
-      }
-    });
-
-    // Log to Audit Trail
-    await activityLogService.create({
-      userId: user.id,
-      subscriberId: Number(user.subscriberId),
-      userType: "SUBSCRIBER",
-      action: "ASSIGN_STAFF",
-      message: `Assigned ${staffUser.fullName} as ${staffData.role} to Contract ${contract.contractNumber}`
-    });
-
-    // --- NOTIFICATION LOGIC ---
-    // Notify the assigned staff member
-    await notificationService.create({
-      title: "New Assignment",
-      message: `You have been assigned as ${staffData.role} to Contract ${contract.contractNumber}.`,
-      type: "WORKFLOW",
-      subscriberId: Number(user.subscriberId),
-      userId: staffData.userId
-    });
-
-    return newAssignment;
+    return results;
   },
 
   // ===============================
@@ -484,7 +539,7 @@ module.exports = {
     if (!contract) throw { status: 404, customMessage: "Contract not found" };
 
     // 2. Check Staff Assignment Existence
-    const assignment = await prisma.contractStaff.findFirst({
+    const assignments = await prisma.contractStaff.findMany({
       where: { 
         contractId, 
         userId: Number(staffId) 
@@ -492,23 +547,29 @@ module.exports = {
       include: { user: true } // Include user to get name for log
     });
 
-    if (!assignment) throw { status: 404, customMessage: "Staff assignment not found" };
+    if (assignments.length === 0) throw { status: 404, customMessage: "Staff assignment not found" };
 
     // 3. Delete
-    await prisma.contractStaff.delete({
-      where: { id: assignment.id }
+    await prisma.contractStaff.deleteMany({
+      where: { 
+        contractId,
+        userId: Number(staffId)
+      }
     });
 
     // Log to Audit Trail
+    const staffName = assignments[0].user.fullName;
+    const rolesRemoved = assignments.map(a => a.role).join(", ");
+
     await activityLogService.create({
       userId: user.id,
       subscriberId: Number(user.subscriberId),
       userType: "SUBSCRIBER",
       action: "REMOVE_STAFF",
-      message: `Removed staff member ${assignment.user.fullName} from Contract ${contract.contractNumber}`
+      message: `Removed staff member ${staffName} (Roles: ${rolesRemoved}) from Contract ${contract.contractNumber}`
     });
 
     return { message: "Staff removed successfully" };
   }
 
-};
+}; 

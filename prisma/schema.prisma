@@ -13,7 +13,6 @@ model Role {
   users User[]
 } 
 
- 
 
 model User {
   id       Int     @id @default(autoincrement())
@@ -34,6 +33,7 @@ model User {
   contractsManaged EngagementContract[] @relation("AuditManagerContracts")
   contractStaffAssignments ContractStaff[]
   uploadedContractDocuments ContractDocument[]
+  uploadedTrialBalances TrialBalance[]
   
   branchId Int?
   branch   Branch?     @relation("BranchUsers", fields: [branchId], references: [id])
@@ -764,6 +764,7 @@ model EngagementContract {
   assignedStaff ContractStaff[]
   reviewGuides  ContractReviewGuide[]
   documents     ContractDocument[]
+  trialBalance  TrialBalance?
 
 
   createdAt DateTime @default(now())
@@ -776,6 +777,11 @@ model EngagementContract {
   @@unique([subscriberId, commercialRegisterNumber, engagementContractDate])
 }
 
+enum ContractRole {
+  ASSISTANT_TECHNICAL_AUDITOR
+  FIELD_AUDITOR
+  CONTACT_PERSON
+}
 
 model ContractStaff {
   id String @id @default(uuid())
@@ -786,7 +792,7 @@ model ContractStaff {
   userId Int
   user User @relation(fields: [userId], references: [id])
 
-  role String // Assistant Technical Auditor, Field Auditor, Contact Person
+  role ContractRole
 
   assignedAt DateTime @default(now())
   
@@ -837,4 +843,46 @@ model ContractDocument {
   uploadedBy User @relation(fields: [uploadedById], references: [id])
 
   createdAt DateTime @default(now())
+}
+
+// ===============================
+// Trial Balance
+// ===============================
+model TrialBalance {
+  id           String   @id @default(uuid())
+  contractId   String   @unique
+  contract     EngagementContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  status       String   @default("DRAFT") // DRAFT, CONFIRMED
+  uploadedById Int
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accounts     TrialBalanceAccount[]
+}
+
+model TrialBalanceAccount {
+  id             String   @id @default(uuid())
+  trialBalanceId String
+  trialBalance   TrialBalance @relation(fields: [trialBalanceId], references: [id], onDelete: Cascade)
+
+  accountCode    String   @db.VarChar(50)
+  accountName    String
+
+  beginningDebit  Float @default(0)
+  beginningCredit Float @default(0)
+  debitMovement   Float @default(0)
+  creditMovement  Float @default(0)
+  beginningDebitAdjustment  Float @default(0)
+  beginningCreditAdjustment Float @default(0)
+  debitMovementAdjustment   Float @default(0)
+  creditMovementAdjustment  Float @default(0)
+  adjustedBeginningBalance Float @default(0)
+  netMovement              Float @default(0)
+  finalBalance             Float @default(0)
+  balanceType              String @default("BALANCED")
+
+  @@unique([trialBalanceId, accountCode])
 }

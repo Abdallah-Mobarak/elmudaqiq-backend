@@ -94,33 +94,117 @@ module.exports = {
       next(err);
     }
   },
-
+ 
   // ===============================
   // PROFILE (JWT REQUIRED)
   // ===============================
   profile: async (req, res, next) => {
     try {
+  
       const user = await prisma.user.findUnique({
         where: { id: req.user.id },
-        select: {
-          id: true,
-          fullName: true,
-          email: true,
-          phone: true,
-          roleId: true,
-          subscriberId: true,
-          createdAt: true
+  
+        include: {
+          Role: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+  
+          branch: {
+            select: {
+              id: true,
+              name: true,
+              cityName: true,
+              status: true
+            }
+          },
+  
+          managedBranch: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+  
+          subscriber: {
+            include: {
+  
+              country: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              },
+  
+              city: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              },
+  
+              subscriptions: {
+                where: {
+                  status: "ACTIVE"
+                },
+                take: 1,
+                include: {
+                  plan: {
+                    select: {
+                      id: true,
+                      name: true,
+                      durationMonths: true,
+                      usersLimit: true,
+                      branchesLimit: true
+                    }
+                  }
+                }
+              }
+  
+            }
+          }
+  
+        }
+  
+      });
+  
+      if (!user) {
+        return res.status(404).json({
+          message: "User not found"
+        });
+      }
+  
+      // حذف الحقول الحساسة
+      delete user.password;
+      delete user.otp;
+      delete user.otpExpiresAt;
+  
+      // عدد الاشعارات
+      const notificationsCount = await prisma.notification.count({
+        where: {
+          userId: user.id,
+          isRead: false
         }
       });
-
+  
       res.json({
         message: "Profile loaded successfully",
-        user
+  
+        user,
+  
+        meta: {
+          unreadNotifications: notificationsCount
+        }
+  
       });
+  
     } catch (err) {
       next(err);
     }
   },
+
 
   // ===============================
   // GET ALL USERS (ADMIN ONLY)
@@ -128,17 +212,20 @@ module.exports = {
   getAllUsers: async (req, res, next) => {
     try {
       const users = await prisma.user.findMany({
-        select: {
-          id: true,
-          fullName: true,
-          email: true,
-          roleId: true,
-          subscriberId: true,
-          createdAt: true
+        orderBy: { createdAt: 'desc' },
+        include: {
+          Role: true,
+          branch: true
         }
       });
 
-      res.json({ users });
+      // حذف البيانات الحساسة من القائمة
+      const safeUsers = users.map(user => {
+        const { password, otp, otpExpiresAt, ...rest } = user;
+        return rest;
+      });
+
+      res.json({ users: safeUsers });
     } catch (err) {
       next(err);
     }

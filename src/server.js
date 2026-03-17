@@ -56,7 +56,7 @@ app.use("/notifications",  require("./routes/notification.routes"));
 app.use("/activity-logs", require("./routes/activityLog.routes"));
 app.use("/kpi", require("./routes/kpi.routes"));
 app.use("/plans", require("./routes/plan.routes"));
-
+app.use('/contracts', require("./routes/trialBalance.routes"));
   
 // Error Handler (ALWAYS LAST)
 app.use(errorMiddleware);

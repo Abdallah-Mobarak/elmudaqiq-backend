@@ -1,27 +1,31 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const net = require("net"); //check the ip
 
 async function resolveTenant(req, res, next) {
   try {
     let subdomain;
 
-    // 1. Check Header (Priority for API Testing/Postman)
-    if (req.headers["x-tenant"]) {
-      subdomain = req.headers["x-tenant"];
+    // 1. Check Header (Priority for API Testing/Postman/Frontend)
+    const tenantHeader = req.headers["x-tenant"];
+    // تجاهل الكلمات النصية اللي الفرونت إند بيبعتها بالغلط لما تكون المتغيرات فاضية
+    if (tenantHeader && tenantHeader !== "undefined" && tenantHeader !== "null" && tenantHeader !== "") {
+      subdomain = tenantHeader;
     }
 
     // 2. Check Hostname (Browser/Production/Local with hosts file)
     if (!subdomain) {
       const host = req.hostname; 
 
-      if (host) {
+      // تجاهل الـ IP Addresses تماماً (مثل 127.0.0.1 أو 192.168.1.5)
+      if (host && !net.isIP(host)) {
         const parts = host.split(".");
         
         // Logic to extract subdomain:
         // Production: sub.domain.com -> parts[0]
         // Local with hosts: sub.localhost -> parts[0]
         // Ignore 'www', 'api', or direct IP/localhost access
-        if (parts.length > 1 && !["www", "api", "mudqiq"].includes(parts[0])) {
+        if (parts.length > 1 && !["www", "api", "mudqiq", "localhost"].includes(parts[0])) {
            // Ensure it's not just "localhost" (length 1)
            // Localhost logic: parts[1] is 'localhost' (e.g. tenant.localhost)
            // Production logic: parts length is usually 3 (tenant.domain.com)
@@ -45,7 +49,7 @@ async function resolveTenant(req, res, next) {
     });
 
     if (!subscriber) {
-      return res.status(404).json({ message: "Subscriber not found" });
+      return res.status(404).json({ message: "Subscriber not found (Invalid Tenant)" });
     }
 
     if (subscriber.status !== "ACTIVE") {

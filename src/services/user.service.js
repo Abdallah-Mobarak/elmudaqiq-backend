@@ -108,7 +108,9 @@ module.exports = {
   // ===============================
   getAll: async (subscriberId, query, currentUser) => {
     const { page = 1, limit = 10, search, jobTitle, branchId, status, roleId } = query;
-    const where = { subscriberId: Number(subscriberId) };
+    const where = { subscriberId: Number(subscriberId) ,
+      id: { not: currentUser.id } 
+    };
 
     // Scoping Logic
     if (currentUser.role === ROLES.BRANCH_MANAGER) {

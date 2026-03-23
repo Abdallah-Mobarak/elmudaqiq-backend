@@ -219,7 +219,17 @@ exports.create = async (data, files) => {
       throw { status: 500, customMessage: "System Error: SUBSCRIBER_OWNER role not found in database." };
     }
 
-    // 4. Create Owner User
+    // 4. Create Main Branch
+    const mainBranch = await tx.branch.create({
+      data: {
+        name: "Main",
+        cityName: city.name, // Derived from the validated city object above
+        subscriberId: newSubscriber.id,
+        status: "ACTIVE"
+      }
+    });
+
+    // 5. Create Owner User
     const tempPassword = generatePassword(10);
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
@@ -232,7 +242,8 @@ exports.create = async (data, files) => {
         status: "active",
         roleId: ownerRole.id,
         subscriberId: newSubscriber.id,
-        mustChangePassword: true
+        mustChangePassword: true,
+        branchId: mainBranch.id
       }
     }); 
 

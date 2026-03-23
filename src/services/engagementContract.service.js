@@ -42,22 +42,31 @@ module.exports = {
     // Transaction: Generate contract number and create contract
     return prisma.$transaction(async (tx) => {
 
-      const lastContract = await tx.engagementContract.findFirst({
-        where: { subscriberId },
-        orderBy: { contractNumber: "desc" },
+      // Find the last contract within the same year to determine the next serial number
+      const lastContractInYear = await tx.engagementContract.findFirst({
+        where: {
+          subscriberId,
+          engagementContractDate: {
+            gte: new Date(`${contractYear}-01-01`),
+            lte: new Date(`${contractYear}-12-31`)
+          }
+        },
+        orderBy: { createdAt: "desc" }, // Get the most recently created contract in that year
         select: { contractNumber: true }
       });
 
       let nextSerial = 1;
-
-      if (lastContract?.contractNumber) {
-        const currentNum = parseInt(lastContract.contractNumber);
-        if (!isNaN(currentNum)) {
-          nextSerial = currentNum + 1;
+      if (lastContractInYear?.contractNumber) {
+        const parts = lastContractInYear.contractNumber.split('/');
+        const lastSerialPart = parts[parts.length - 1]; // Get the serial part
+        const lastSerial = parseInt(lastSerialPart);
+        if (!isNaN(lastSerial)) {
+          nextSerial = lastSerial + 1;
         }
       }
 
-      const contractNumber = `00${nextSerial}`;
+      const formattedSerial = String(nextSerial).padStart(4, '0'); // e.g., 0001, 0012
+      const contractNumber = `${data.commercialRegisterNumber}/${contractYear}/${formattedSerial}`;
 
       const newContract = await tx.engagementContract.create({
         data: {

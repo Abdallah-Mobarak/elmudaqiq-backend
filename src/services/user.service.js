@@ -69,7 +69,7 @@ module.exports = {
         phone: data.mobile || data.phone,
         jobTitle: data.jobTitle,
         subscriberId: Number(subscriberId),
-        branchId: data.branchId ? Number(data.branchId) : null,
+        branchId: data.branchId ? Number(data.branchId) : (currentUser.branchId ? Number(currentUser.branchId) : null),
         roleId: Number(data.roleId),
         status: data.status || "active",
         startDate: data.startDate ? new Date(data.startDate) : new Date(),

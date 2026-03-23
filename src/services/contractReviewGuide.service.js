@@ -1,4 +1,5 @@
 const prisma = require("../config/prisma");
+const hierarchicalSort = require("../utils/hierarchicalSort");
 
 module.exports = {
   /**
@@ -36,7 +37,7 @@ module.exports = {
       orderBy: { id: 'asc' } // Or by 'number' if it's sortable
     });
 
-    return guides;
+    return hierarchicalSort(guides, "number");
   },
 
   /**
@@ -66,7 +67,7 @@ module.exports = {
       orderBy: { id: 'asc' }
     });
 
-    return pendingGuides;
+    return hierarchicalSort(pendingGuides, "number");
   },
 
   /**
@@ -101,7 +102,7 @@ module.exports = {
       },
     });
   },
-
+ 
   /**
    * Add a supporting document to a review guide item.
    */

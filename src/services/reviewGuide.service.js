@@ -4,6 +4,7 @@ const prisma = new PrismaClient();
 const importExcelUtil = require("../utils/fileHandlers/importExcel");
 const exportExcelUtil = require("../utils/fileHandlers/exportExcel");
 const exportPDFUtil = require("../utils/fileHandlers/exportPdf");
+const hierarchicalSort = require("../utils/hierarchicalSort");
 
 module.exports = {
 
@@ -68,16 +69,16 @@ module.exports = {
       ];
     }
 
-    const data = await prisma.reviewGuide.findMany({
+    const allData = await prisma.reviewGuide.findMany({
       where,
-      skip,
-      take: Number(limit),
-      orderBy: { id: "desc" }
+      orderBy: { id: "asc" }
     });
 
-    const total = await prisma.reviewGuide.count({ where });
+    // Sort hierarchically using the "number" column
+    const sortedData = hierarchicalSort(allData, "number");
+    const paginatedData = sortedData.slice(skip, skip + Number(limit));
 
-    return { data, total };
+    return { data: paginatedData, total: sortedData.length };
   },
 
   // ---------------- GET ONE ---------------- //

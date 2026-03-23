@@ -2,6 +2,7 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const importExcelUtil = require("../utils/fileHandlers/importExcel");
 const exportExcelUtil = require("../utils/fileHandlers/exportExcel");
+const hierarchicalSort = require("../utils/hierarchicalSort");
 
 module.exports = {
   create: async (data) => {
@@ -55,23 +56,21 @@ module.exports = {
       ];
     }
 
-    const [data, total] = await Promise.all([
-      prisma.reviewGuideTemplate.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { id: 'asc' }
-      }),
-      prisma.reviewGuideTemplate.count({ where })
-    ]);
+    const allData = await prisma.reviewGuideTemplate.findMany({
+      where,
+      orderBy: { id: 'asc' }
+    });
+
+    const sortedData = hierarchicalSort(allData, "number");
+    const paginatedData = sortedData.slice(skip, skip + take);
 
     return {
-      data,
+      data: paginatedData,
       meta: {
-        total,
+        total: sortedData.length,
         page: pageNum,
         limit: take,
-        totalPages: Math.ceil(total / take)
+        totalPages: Math.ceil(sortedData.length / take)
       }
     };
   },

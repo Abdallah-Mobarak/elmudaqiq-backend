@@ -205,6 +205,22 @@ module.exports = {
     }
   },
 
+  // ===============================
+  // UPDATE PROFILE (LOGGED IN USER)
+  // ===============================
+  updateProfile: async (req, res, next) => {
+    try {
+      // نمرر الآي دي، بيانات الـ body، وأيضاً الـ file في حال تم رفع صورة
+      const updatedUser = await authService.updateProfile(req.user.id, req.body, req.file);
+  
+      res.json({
+        message: "Profile updated successfully",
+        user: updatedUser
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
 
   // ===============================
   // GET ALL USERS (ADMIN ONLY)

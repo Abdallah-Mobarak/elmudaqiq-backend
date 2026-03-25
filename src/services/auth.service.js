@@ -203,5 +203,48 @@ module.exports = {
     });
   
     return { message: "Password changed successfully" };
-  }
+  },
+
+
+
+
+  // ===============================
+  // UPDATE PROFILE
+  // ===============================
+  updateProfile: async (userId, data, file) => {
+    // 1. التاكد من وجود المستخدم
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw { status: 404, customMessage: "User not found" };
+    }
+
+    // 2. تجميع البيانات المراد تحديثها
+    const updateData = {};
+    
+    // يمكنك إضافة أي حقول أخرى هنا حسب الـ Schema الخاصة بك
+    if (data.fullName) updateData.fullName = data.fullName;
+    if (data.phone) updateData.phone = data.phone;
+    
+    // إذا تم رفع صورة شخصية
+    if (file) {
+      // توحيد مسارات الملفات (بناءً على نظام التشغيل)
+      updateData.profilePhoto = file.path.replace(/\\/g, "/"); 
+    }
+
+    // 3. التحديث في قاعدة البيانات
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        profilePhoto: true, 
+        status: true,
+      }
+    });
+
+    return updatedUser;
+  },
 };

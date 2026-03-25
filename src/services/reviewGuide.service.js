@@ -34,57 +34,126 @@ module.exports = {
       number,
       statement,
       responsiblePerson,
-      id
+      id,
+      userRole
     } = filters;
-
+  
     if (!subscriberId) throw { status: 400, customMessage: "Subscriber ID is required" };
-
+  
     const skip = (page - 1) * limit;
-
-    const where = {
-      subscriberId: Number(subscriberId)
-    };
-
-    if (id) where.id = Number(id);
-    if (level) where.level = { contains: level};
-    if (number) where.number = { contains: number,};
-    if (statement) where.statement = { contains: statement,};
-    if (responsiblePerson) {
-      where.responsiblePerson = { contains: responsiblePerson,};
+  
+    // Base filter: always scope data to the current subscriber
+    const where = { subscriberId: Number(subscriberId) };
+  
+    // Optional filters
+    if (id)        where.id        = Number(id);
+    if (level)     where.level     = { contains: level };
+    if (number)    where.number    = { contains: number };
+    if (statement) where.statement = { contains: statement };
+  
+    // Regular users only see records assigned to their role
+    // Admins and owners can see everything (or filter by responsiblePerson manually)
+    if (userRole && !["SUBSCRIBER_OWNER", "ADMIN"].includes(userRole)) {
+      where.responsiblePerson = userRole;
+    } else if (responsiblePerson) {
+      where.responsiblePerson = { contains: responsiblePerson };
     }
-
+  
+    // Search across all text fields
     if (search) {
       const s = String(search);
       where.OR = [
-        { level: { contains: s,} },
-        { number: { contains: s} },
-        { statement: { contains: s,  } },
-        { purpose: { contains: s, } },
-        { responsiblePerson: { contains: s,} },
-        { conclusion: { contains: s,  } },
-        { attachments: { contains: s,   } },
-        { notes1: { contains: s,  } },
-        { notes2: { contains: s,  } },
-        { notes3: { contains: s,  } },
+        { level:             { contains: s } },
+        { number:            { contains: s } },
+        { statement:         { contains: s } },
+        { purpose:           { contains: s } },
+        { responsiblePerson: { contains: s } },
+        { conclusion:        { contains: s } },
+        { attachments:       { contains: s } },
+        { notes1:            { contains: s } },
+        { notes2:            { contains: s } },
+        { notes3:            { contains: s } },
       ];
     }
-
+  
     const allData = await prisma.reviewGuide.findMany({
       where,
       orderBy: { id: "asc" }
     });
-
-    // Sort hierarchically using the "number" column
-    const sortedData = hierarchicalSort(allData, "number");
+  
+    // Converts a nested tree back into a flat ordered list
+    function flattenTree(nodes) {
+      const result = [];
+      for (const node of nodes) {
+        const { children, ...item } = node;
+        result.push(item);
+        if (children?.length > 0) {
+          result.push(...flattenTree(children));
+        }
+      }
+      return result;
+    }
+  
+    let sortedData = [];
+  
+    if (userRole && !["SUBSCRIBER_OWNER", "ADMIN"].includes(userRole)) {
+      // Sort numerically by number field
+      const flatSorted = allData.sort((a, b) =>
+        String(a.number || "").localeCompare(String(b.number || ""), undefined, { numeric: true })
+      );
+  
+      // Build a lookup map for quick parent search
+      const map = {};
+      flatSorted.forEach(item => {
+        map[item.number] = { ...item, children: [] };
+      });
+  
+      const tree = [];
+  
+      // Place each item under its closest parent, or at root if no parent found
+      flatSorted.forEach(item => {
+        const node = map[item.number];
+        const parts = String(item.number || "").split(".");
+        parts.pop();
+  
+        let parentFound = false;
+        while (parts.length > 0) {
+          const parentNum = parts.join(".");
+          if (map[parentNum]) {
+            map[parentNum].children.push(node);
+            parentFound = true;
+            break;
+          }
+          parts.pop();
+        }
+  
+        if (!parentFound) tree.push(node);
+      });
+  
+      // Flatten tree to preserve hierarchy order for pagination
+      sortedData = flattenTree(tree);
+  
+    } else {
+      // Full hierarchical sort for admins and owners
+      sortedData = hierarchicalSort(allData, "number");
+    }
+  
     const paginatedData = sortedData.slice(skip, skip + Number(limit));
-
+  
     return { data: paginatedData, total: sortedData.length };
   },
 
   // ---------------- GET ONE ---------------- //
-  getOne: async (id) => {
-    const item = await prisma.reviewGuide.findUnique({
-      where: { id: Number(id) }
+  getOne: async (id, userRole) => {
+    const where = { id: Number(id) };
+
+    // 🔒 Role-Based Visibility (الحماية بناءً على الدور)
+    if (userRole && !["SUBSCRIBER_OWNER", "ADMIN"].includes(userRole)) {
+      where.responsiblePerson = userRole;
+    }
+
+    const item = await prisma.reviewGuide.findFirst({
+      where
     });
 
     if (!item) throw { customMessage: "Review Guide entry not found", status: 404 };
@@ -156,7 +225,7 @@ module.exports = {
 
   // ---------------- EXPORT EXCEL (Filters + id + multi-ids) ---------------- //
   exportExcel: async (filters = {}, subscriberId) => {
-    const { ids, id } = filters;
+    const { ids, id, userRole } = filters;
 
     const where = {
       subscriberId: Number(subscriberId)
@@ -167,6 +236,11 @@ module.exports = {
     if (ids) {
       const arr = ids.split(",").map(n => Number(n));
       where.id = { in: arr };
+    }
+
+    // 🔒 Role-Based Visibility
+    if (userRole && !["SUBSCRIBER_OWNER", "ADMIN"].includes(userRole)) {
+      where.responsiblePerson = userRole;
     }
 
     const data = await prisma.reviewGuide.findMany({ where });
@@ -199,7 +273,7 @@ module.exports = {
 
   // ---------------- EXPORT PDF (Filters + id + multi-ids) ---------------- //
   exportPDF: async (filters = {}, subscriberId) => {
-    const { ids, id } = filters;
+    const { ids, id, userRole } = filters;
 
     const where = {
       subscriberId: Number(subscriberId)
@@ -209,6 +283,11 @@ module.exports = {
     if (ids) {
       const arr = ids.split(",").map(n => Number(n));
       where.id = { in: arr };
+    }
+
+    // 🔒 Role-Based Visibility
+    if (userRole && !["SUBSCRIBER_OWNER", "ADMIN"].includes(userRole)) {
+      where.responsiblePerson = userRole;
     }
 
     const data = await prisma.reviewGuide.findMany({ where });

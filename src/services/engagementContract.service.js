@@ -79,7 +79,7 @@ module.exports = {
           branchId,
           commercialRegisterDate: new Date(data.commercialRegisterDate),
           engagementContractDate: new Date(data.engagementContractDate)
-        }
+        } 
       });
 
       // --- Snapshot Review Guides ---
@@ -97,6 +97,7 @@ module.exports = {
           number: guide.number,
           statement: guide.statement,
           purpose: guide.purpose,
+          responsiblePerson: guide.responsiblePerson,
         }));
 
         await tx.contractReviewGuide.createMany({
@@ -146,18 +147,19 @@ module.exports = {
     const where = { subscriberId };
 
     // Audit Manager can only see contracts of his branch
-    if (user.Role?.name === "Audit Manager" && user.branchId) {
+    if (user.role === ROLES.AUDIT_MANAGER && user.branchId) {
       where.branchId = user.branchId;
     }
 
     // Technical Auditor Filter: INACTIVE + Approved by Manager (auditManagerId != null)
-    if (user.Role?.name === ROLES.TECHNICAL_AUDITOR) {
+    if (user.role === ROLES.TECHNICAL_AUDITOR) {
       where.branchId = user.branchId; // Must be same branch
       where.status = "INACTIVE";
       where.auditManagerId = { not: null };
     }
 
-    if (status) {
+    // Prevent Frontend query from overriding the Technical Auditor's strict restriction
+    if (status && user.role !== ROLES.TECHNICAL_AUDITOR) {
       where.status = status;
     }
 
@@ -198,7 +200,7 @@ module.exports = {
     };
 
   },
-
+ 
 
   // ===============================
   // Get One Contract
@@ -433,7 +435,7 @@ module.exports = {
 
     return eligibleUsers;
   },
-
+ 
   // ===============================
   // Assign Staff (Audit Manager)
   // ===============================

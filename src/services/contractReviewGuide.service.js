@@ -7,7 +7,7 @@ module.exports = {
    * Ensures user has access to the contract.
    */
   getContractGuides: async (user, contractId) => {
-    // 1. Verify user has access to the contract
+    // 1. Verify user has access to this contract
     const contract = await prisma.engagementContract.findFirst({
       where: {
         id: contractId,
@@ -15,14 +15,27 @@ module.exports = {
       },
       select: { id: true }
     });
-
+  
     if (!contract) {
       throw { status: 404, customMessage: "Contract not found or access denied." };
     }
-
-    // 2. Fetch the guides for that contract, including related documents
+  
+    // 2. Regular users only see guides assigned to their role
+    const where = { contractId };
+    if (user.role && !["SUBSCRIBER_OWNER", "ADMIN"].includes(user.role)) {
+      where.responsiblePerson = user.role;
+    }
+  
+    // 🔍 LOG
+    console.log("=== DEBUG getContractGuides ===");
+    console.log("user.role:", user.role);
+    console.log("user.subscriberId:", user.subscriberId);
+    console.log("contractId:", contractId);
+    console.log("where:", JSON.stringify(where));
+  
+    // 3. Fetch guides with their documents
     const guides = await prisma.contractReviewGuide.findMany({
-      where: { contractId },
+      where,
       include: {
         documents: {
           select: {
@@ -31,13 +44,65 @@ module.exports = {
             filePath: true,
             createdAt: true,
           },
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: "desc" },
         },
       },
-      orderBy: { id: 'asc' } // Or by 'number' if it's sortable
+      orderBy: { id: "asc" },
     });
-
-    return hierarchicalSort(guides, "number");
+  
+    console.log("guides count:", guides.length);
+    console.log("guides:", JSON.stringify(guides));
+    // 🔍 END LOG
+  
+    // 4. Flatten nested tree back to ordered flat list
+    function flattenTree(nodes) {
+      const result = [];
+      for (const node of nodes) {
+        const { children, ...item } = node;
+        result.push(item);
+        if (children?.length > 0) {
+          result.push(...flattenTree(children));
+        }
+      }
+      return result;
+    }
+  
+    // 5. Admins and owners get full hierarchical sort
+    if (!user.role || ["SUBSCRIBER_OWNER", "ADMIN"].includes(user.role)) {
+      return hierarchicalSort(guides, "number");
+    }
+  
+    // 6. Regular users: build tree then flatten to preserve order
+    const flatSorted = guides.sort((a, b) =>
+      String(a.number || "").localeCompare(String(b.number || ""), undefined, { numeric: true })
+    );
+  
+    const map = {};
+    flatSorted.forEach(item => {
+      map[item.number] = { ...item, children: [] };
+    });
+  
+    const tree = [];
+    flatSorted.forEach(item => {
+      const node = map[item.number];
+      const parts = String(item.number || "").split(".");
+      parts.pop();
+  
+      let parentFound = false;
+      while (parts.length > 0) {
+        const parentNum = parts.join(".");
+        if (map[parentNum]) {
+          map[parentNum].children.push(node);
+          parentFound = true;
+          break;
+        }
+        parts.pop();
+      }
+  
+      if (!parentFound) tree.push(node);
+    });
+  
+    return flattenTree(tree);
   },
 
   /**

@@ -26,7 +26,7 @@ module.exports = {
   },
 
   getAll: async (filters = {}) => {
-    const { page = 1, limit = 20, search, level, id, number, statement, responsiblePerson } = filters;
+    const { page = 1, limit = 20, search, level, id, number, statement, responsiblePerson, userRole } = filters;
     
     const pageNum = Number(page) > 0 ? Number(page) : 1;
     const take = Number(limit) > 0 ? Number(limit) : 20;
@@ -38,7 +38,13 @@ module.exports = {
     if (level) where.level = { contains: level };
     if (number) where.number = { contains: number };
     if (statement) where.statement = { contains: statement };
-    if (responsiblePerson) where.responsiblePerson = { contains: responsiblePerson };
+
+    // 🔒 Role-Based Visibility (الحماية بناءً على الدور)
+    if (userRole && !["SUBSCRIBER_OWNER", "ADMIN"].includes(userRole)) {
+      where.responsiblePerson = { contains: userRole };
+    } else if (responsiblePerson) {
+      where.responsiblePerson = { contains: responsiblePerson };
+    }
 
     if (search) {
       const s = String(search);
@@ -61,7 +67,49 @@ module.exports = {
       orderBy: { id: 'asc' }
     });
 
-    const sortedData = hierarchicalSort(allData, "number");
+    let sortedData = [];
+
+    // 🛑 تطبيق الشجرة الذكية للموظفين
+    if (userRole && !["SUBSCRIBER_OWNER", "ADMIN"].includes(userRole)) {
+      const flatSorted = allData.sort((a, b) => {
+        const numA = String(a.number || "");
+        const numB = String(b.number || "");
+        return numA.localeCompare(numB, undefined, { numeric: true });
+      });
+
+      const map = {};
+      const tree = [];
+
+      flatSorted.forEach(item => {
+        map[item.number] = { ...item, children: [] };
+      });
+
+      flatSorted.forEach(item => {
+        const node = map[item.number];
+        const parts = String(item.number || "").split(".");
+        parts.pop(); 
+
+        let parentFound = false;
+        while (parts.length > 0) {
+          const parentNum = parts.join(".");
+          if (map[parentNum]) {
+            map[parentNum].children.push(node);
+            parentFound = true;
+            break;
+          }
+          parts.pop(); 
+        }
+
+        if (!parentFound) {
+          tree.push(node);
+        }
+      });
+
+      sortedData = tree;
+    } else {
+      sortedData = hierarchicalSort(allData, "number");
+    }
+
     const paginatedData = sortedData.slice(skip, skip + take);
 
     return {
@@ -107,8 +155,16 @@ module.exports = {
   },
 
   // ---------------- EXPORT EXCEL ----------------
-  exportExcel: async () => {
-    const data = await prisma.reviewGuideTemplate.findMany({ orderBy: { id: 'asc' } });
+  exportExcel: async (filters = {}) => {
+    const { userRole } = filters;
+    const where = {};
+
+    // 🔒 Role-Based Visibility
+    if (userRole && !["SUBSCRIBER_OWNER", "ADMIN"].includes(userRole)) {
+      where.responsiblePerson = { contains: userRole };
+    }
+
+    const data = await prisma.reviewGuideTemplate.findMany({ where, orderBy: { id: 'asc' } });
 
     return exportExcelUtil({
       headers: [

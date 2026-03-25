@@ -23,6 +23,28 @@ exports.getAll = async (req, res, next) => {
   }
 };
 
+//  View My Complaints (Subscriber)
+exports.getMyComplaints = async (req, res, next) => {
+  try {
+    // التحقق من أن المستخدم يمتلك صلاحية الـ Subscriber Owner الفعلي
+    if (req.user.role !== "SUBSCRIBER_OWNER") {
+      return res.status(403).json({ 
+        message: "Access denied. Only the Subscriber Owner can view complaints." 
+      });
+    }
+
+    const subscriberId = req.user.subscriberId;
+    if (!subscriberId) {
+      return res.status(400).json({ message: "Subscriber ID is missing from token." });
+    }
+
+    const result = await complaintService.getAll({ ...req.query, subscriberId });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
 //  Respond To Complaint
 exports.respond = async (req, res, next) => {
   try {

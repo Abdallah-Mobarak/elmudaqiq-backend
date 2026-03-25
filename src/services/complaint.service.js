@@ -22,6 +22,12 @@ module.exports = {
       }
     }
 
+    // يمكنك إضافة التحقق هنا بناءً على القيم الموجودة في الـ Enum الخاص بك
+    const validTypes = ["TECHNICAL", "BILLING", "INQUIRY", "OTHER"]; // عدل هذه القائمة حسب الـ Schema الخاصة بك
+    if (!validTypes.includes(data.type)) {
+      throw { status: 400, message: `Invalid complaint type. Allowed values are: ${validTypes.join(", ")}` };
+    }
+
     return prisma.complaint.create({
       data: {
         subscriberId: Number(data.subscriberId),
@@ -45,9 +51,14 @@ module.exports = {
       type,
       fromDate,
       toDate,
+      subscriberId,
     } = query;
 
     const where = {};
+
+    if (subscriberId) {
+      where.subscriberId = Number(subscriberId);
+    }
 
     if (search) {
       where.subscriberName = { contains: search };

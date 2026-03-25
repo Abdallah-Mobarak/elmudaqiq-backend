@@ -4,6 +4,7 @@ const authController = require("../controllers/auth.controller");
 const authMiddleware = require("../middleware/auth.middleware");
 const adminMiddleware = require("../middleware/admin.middleware");
 const resolveTenant = require("../middleware/resolveTenant.middleware");
+const uploadImage = require("../middleware/uploadImage");
 
 router.post("/login", resolveTenant, authController.login);
 router.post("/send-otp", resolveTenant, authController.sendOTP);
@@ -13,6 +14,7 @@ router.post("/change-password", authMiddleware, authController.changePassword);
 
 // Protected Route (must send token)
 router.get("/profile", authMiddleware, authController.profile);
+router.put("/profile", authMiddleware, uploadImage.single("profilePicture"), authController.updateProfile);
 router.get("/all-users", authMiddleware, adminMiddleware, authController.getAllUsers);
 
 

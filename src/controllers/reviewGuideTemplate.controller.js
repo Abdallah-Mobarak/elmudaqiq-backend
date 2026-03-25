@@ -7,7 +7,8 @@ module.exports = {
 
   getAll: async (req, res, next) => {
     try {
-      const result = await service.getAll(req.query);
+      const filters = { ...req.query, userRole: req.user.role };
+      const result = await service.getAll(filters);
       res.json(result);
     } catch (err) {
       next(err);
@@ -32,7 +33,8 @@ module.exports = {
 
   exportExcel: async (req, res, next) => {
     try {
-      const { filePath } = await service.exportExcel();
+      const filters = { ...req.query, userRole: req.user.role };
+      const { filePath } = await service.exportExcel(filters);
       res.download(filePath);
     } catch (err) { next(err); }
   }

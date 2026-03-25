@@ -14,6 +14,13 @@ router.get(
   complaintController.getAll
 );
 
+//  View My Complaints (Subscriber)
+router.get(
+  "/mine",
+  authMiddleware,
+  complaintController.getMyComplaints
+);
+
 //  Respond To Complaint (Admin)
 router.patch(
   "/:id/respond",

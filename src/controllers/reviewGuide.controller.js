@@ -13,7 +13,8 @@ module.exports = {
 
   getAll: async (req, res, next) => {
     try {
-      const result = await service.getAll(req.query, req.user.subscriberId);
+      const filters = { ...req.query, userRole: req.user.role };
+      const result = await service.getAll(filters, req.user.subscriberId);
       res.json(result);
     } catch (err) {
       next(err);
@@ -22,7 +23,7 @@ module.exports = {
 
   getOne: async (req, res, next) => {
     try {
-      const result = await service.getOne(req.params.id);
+      const result = await service.getOne(req.params.id, req.user.role);
       res.json(result);
     } catch (err) {
       next(err);
@@ -58,7 +59,8 @@ module.exports = {
 
   exportExcel: async (req, res, next) => {
     try {
-      const { filePath } = await service.exportExcel(req.query, req.user.subscriberId);
+      const filters = { ...req.query, userRole: req.user.role };
+      const { filePath } = await service.exportExcel(filters, req.user.subscriberId);
       res.download(filePath);
     } catch (err) {
       next(err);
@@ -67,7 +69,8 @@ module.exports = {
 
   exportPDF: async (req, res, next) => {
     try {
-      const { filePath, stream } = await service.exportPDF(req.query, req.user.subscriberId);
+      const filters = { ...req.query, userRole: req.user.role };
+      const { filePath, stream } = await service.exportPDF(filters, req.user.subscriberId);
       stream.on("finish", () => res.download(filePath));
     } catch (err) {
       next(err);

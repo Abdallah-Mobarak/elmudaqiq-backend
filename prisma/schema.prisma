@@ -812,7 +812,7 @@ model ContractReviewGuide {
   number String?
   statement String?
   purpose String?
-  
+  responsiblePerson String?
   // حقول الإجراءات للمدير
   isApplicable Boolean? // Yes / No
   conclusion String?

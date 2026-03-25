@@ -10,4 +10,8 @@ router.get("/profits", authMiddleware, adminMiddleware, kpiController.getYearlyP
 router.get("/profits/yearly", authMiddleware, adminMiddleware, kpiController.getAllYearsMonthlyProfitKPI);
 
 
+
+// Subscriber Dashboard KPI
+router.get("/subscriber-stats", authMiddleware, kpiController.getSubscriberStats);
+
 module.exports = router;

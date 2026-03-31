@@ -15,7 +15,7 @@ const contractUploads = upload.fields([
   { name: 'facilityLogo', maxCount: 1 }
 ]);
 
-// Apply authentication middleware
+// Apply authentication middleware     
 router.use(authMiddleware);
 
 // Create Contract (Secretary)
@@ -76,6 +76,15 @@ router.delete(
   "/:id/staff/:staffId",
   requirePermission(PERMISSIONS.MANAGE_CONTRACT_STAFF),
   controller.removeStaff
+);
+
+// ===============================
+// Submit Stage & Advance Workflow
+// ===============================
+router.patch(
+  "/:id/submit-stage",
+  requirePermission(PERMISSIONS.VIEW_CONTRACTS), // Service layer handles role-specific logic
+  controller.submitStage
 );
 
 // ===============================

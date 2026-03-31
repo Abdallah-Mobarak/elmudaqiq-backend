@@ -5,7 +5,7 @@ const path = require("path");
 
 module.exports = {
 
-  getSubscribersStats: async (req, res, next) => {
+getSubscribersStats: async (req, res, next) => {
     try {
       const data = await kpiService.getSubscribersStats(req.query);
 
@@ -18,8 +18,7 @@ module.exports = {
     }
   },
 
-
-  getFilesKPI: async (req, res, next) => {
+getFilesKPI: async (req, res, next) => {
   try {
     const data = await kpiService.getFilesKPI(req.query);
 
@@ -31,7 +30,6 @@ module.exports = {
     next(err);
   }
   },
-
 
 getComplaintsKPI: async (req, res, next) => {
   try {

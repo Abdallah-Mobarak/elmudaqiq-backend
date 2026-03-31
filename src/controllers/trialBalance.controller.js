@@ -326,16 +326,24 @@ exports.getTrialBalance = async (req, res, next) => {
 exports.updateAccountAdjustments = async (req, res, next) => {
   try {
     const { accountId } = req.params;
-
+ 
     const account = await prisma.trialBalanceAccount.findUnique({
       where: { id: accountId },
-      include: { trialBalance: true }
+      include: { 
+        trialBalance: { 
+          include: { contract: true } 
+        } 
+      }
     });
-
+ 
     if (!account) {
       return res.status(404).json({ message: "Account not found." });
     }
-
+    
+    if (account.trialBalance.contract.workflowStage !== 'PENDING_TECHNICAL_AUDIT') {
+      return res.status(403).json({ message: "لا يمكن التعديل، تم إغلاق هذه المرحلة من العمل." });
+    }
+ 
     if (account.trialBalance.status === 'CONFIRMED') {
       return res.status(403).json({ message: "لا يمكن تعديل التسويات، ميزان المراجعة معتمد ومقفل." });
     }

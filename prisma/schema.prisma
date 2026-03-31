@@ -707,6 +707,19 @@ enum EngagementContractStatus {
   ARCHIVE
 }
 
+enum ContractWorkflowStage {
+  DRAFT
+  PENDING_AUDIT_MANAGER
+  PENDING_TECHNICAL_AUDIT
+  PENDING_FIELD_AUDIT
+  PENDING_QC_REVIEW
+  PENDING_PARTNER_REVIEW
+  PENDING_REGULATORY_FILING
+  PENDING_ARCHIVING
+  COMPLETED
+}
+
+
 model EngagementContract {
   id String @id @default(uuid())
   
@@ -746,6 +759,7 @@ model EngagementContract {
   
   // --- Workflow & Status ---
   status EngagementContractStatus @default(INACTIVE)
+  workflowStage ContractWorkflowStage @default(DRAFT) // New Workflow logic
   managerComments String? 
 
   // --- Relations ---

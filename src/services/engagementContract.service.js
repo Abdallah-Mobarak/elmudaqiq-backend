@@ -72,6 +72,7 @@ module.exports = {
         data: {
           ...data,
           ...filePaths,
+          workflowStage: "PENDING_AUDIT_MANAGER", // Set initial workflow stage
           contractNumber,
           status: "INACTIVE",
           createdById: user.id,
@@ -140,39 +141,56 @@ module.exports = {
   // Get All Contracts
   // ===============================
   getAll: async (user, query) => {
-
-    const { page = 1, limit = 10, search, status } = query;
+    const { page = 1, limit = 10, search, status, workflowStage } = query;
     const subscriberId = Number(user.subscriberId);
+    const userRole = user.role;
 
     const where = { subscriberId };
 
-    // Audit Manager can only see contracts of his branch
-    if (user.role === ROLES.AUDIT_MANAGER && user.branchId) {
+    // --- Scope to Branch (if user is not a subscriber owner) ---
+    if (user.branchId && ![ROLES.SUBSCRIBER_OWNER, ROLES.ADMIN].includes(userRole)) {
       where.branchId = user.branchId;
     }
 
-    // Technical Auditor Filter: INACTIVE + Approved by Manager (auditManagerId != null)
-    if (user.role === ROLES.TECHNICAL_AUDITOR) {
-      where.branchId = user.branchId; // Must be same branch
-      where.status = "INACTIVE";
-      where.auditManagerId = { not: null };
+    // --- Workflow Stage Filtering based on Role ---
+    const viewPermissions = {
+      [ROLES.AUDIT_MANAGER]: ['PENDING_AUDIT_MANAGER', 'PENDING_TECHNICAL_AUDIT', 'PENDING_FIELD_AUDIT', 'PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_REGULATORY_FILING', 'PENDING_ARCHIVING', 'COMPLETED'],
+      [ROLES.TECHNICAL_AUDITOR]: ['PENDING_TECHNICAL_AUDIT', 'PENDING_FIELD_AUDIT', 'PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_REGULATORY_FILING', 'PENDING_ARCHIVING', 'COMPLETED'],
+      [ROLES.FIELD_AUDITOR]: ['PENDING_FIELD_AUDIT', 'PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_REGULATORY_FILING', 'PENDING_ARCHIVING', 'COMPLETED'],
+      [ROLES.ASSISTANT_TECHNICAL_AUDITOR]: ['PENDING_FIELD_AUDIT', 'PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_REGULATORY_FILING', 'PENDING_ARCHIVING', 'COMPLETED'],
+      [ROLES.QUALITY_CONTROL]: ['PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_REGULATORY_FILING', 'PENDING_ARCHIVING', 'COMPLETED'],
+      [ROLES.MANAGING_PARTNER]: ['PENDING_PARTNER_REVIEW', 'PENDING_REGULATORY_FILING', 'PENDING_ARCHIVING', 'COMPLETED'],
+      [ROLES.REGULATORY_FILINGS_OFFICER]: ['PENDING_REGULATORY_FILING', 'PENDING_ARCHIVING', 'COMPLETED'],
+      [ROLES.ARCHIVE_OFFICER]: ['PENDING_ARCHIVING', 'COMPLETED'],
+    };
+
+    if (viewPermissions[userRole]) {
+      where.workflowStage = { in: viewPermissions[userRole] };
     }
 
-    // Prevent Frontend query from overriding the Technical Auditor's strict restriction
-    if (status && user.role !== ROLES.TECHNICAL_AUDITOR) {
+    // Allow frontend to filter by a specific workflow stage if provided
+    if (workflowStage) {
+      if (where.workflowStage && where.workflowStage.in) {
+        if (where.workflowStage.in.includes(workflowStage)) {
+          where.workflowStage = workflowStage; // Refine the search
+        } else {
+          where.id = '-1'; // Impossible condition
+        }
+      } else {
+        where.workflowStage = workflowStage;
+      }
+    }
+
+    // The old `status` field is still used for the Secretary <-> Audit Manager loop.
+    if (status) {
       where.status = status;
     }
 
     if (search) {
-      where.AND = [
-        { subscriberId },
-        {
-          OR: [
-            { contractNumber: { contains: search } },
-            { customerName: { contains: search } },
-            { commercialRegisterNumber: { contains: search } }
-          ]
-        }
+      where.OR = [
+        { contractNumber: { contains: search } },
+        { customerName: { contains: search } },
+        { commercialRegisterNumber: { contains: search } }
       ];
     }
 
@@ -389,13 +407,20 @@ module.exports = {
       }
     }
 
+    const updateData = {
+      status: data.status,
+      managerComments: data.comments,
+      auditManagerId: user.id
+    };
+
+    // If manager approves (by setting status back to INACTIVE), advance the workflow stage
+    if (data.status === "INACTIVE" && contract.status === "INACTIVE") {
+      updateData.workflowStage = 'PENDING_TECHNICAL_AUDIT';
+    }
+
     const updatedContract = await prisma.engagementContract.update({
       where: { id },
-      data: {
-        status: data.status,
-        managerComments: data.comments,
-        auditManagerId: user.id
-      }
+      data: updateData
     });
 
     return updatedContract;
@@ -446,6 +471,11 @@ module.exports = {
 
     if (!contract) {
       throw { status: 404, customMessage: "Contract not found" };
+    }
+
+    // Security: Check if user has permission (Audit Manager or Technical Auditor)
+    if (![ROLES.AUDIT_MANAGER, ROLES.TECHNICAL_AUDITOR].includes(user.role)) {
+      throw { status: 403, customMessage: "You do not have permission to assign staff." };
     }
 
     // Security: Check Subscriber
@@ -549,6 +579,11 @@ module.exports = {
     });
     if (!contract) throw { status: 404, customMessage: "Contract not found" };
 
+    // Security: Check if user has permission (Audit Manager or Technical Auditor)
+    if (![ROLES.AUDIT_MANAGER, ROLES.TECHNICAL_AUDITOR].includes(user.role)) {
+      throw { status: 403, customMessage: "You do not have permission to remove staff." };
+    }
+
     // 2. Check Staff Assignment Existence
     const assignments = await prisma.contractStaff.findMany({
       where: { 
@@ -581,6 +616,87 @@ module.exports = {
     });
 
     return { message: "Staff removed successfully" };
+  },
+
+  // ===============================
+  // Submit Stage & Advance Workflow
+  // ===============================
+  submitStage: async (user, contractId) => {
+    const contract = await prisma.engagementContract.findUnique({
+      where: { id: contractId, subscriberId: user.subscriberId }
+    });
+    if (!contract) throw { status: 404, customMessage: "Contract not found" };
+
+    const currentStage = contract.workflowStage;
+    const userRole = user.role;
+    let nextStage = null;
+
+    const transitions = {
+      [ROLES.TECHNICAL_AUDITOR]: { from: 'PENDING_TECHNICAL_AUDIT', to: 'PENDING_FIELD_AUDIT' },
+      [ROLES.FIELD_AUDITOR]: { from: 'PENDING_FIELD_AUDIT', to: 'PENDING_QC_REVIEW' },
+      [ROLES.ASSISTANT_TECHNICAL_AUDITOR]: { from: 'PENDING_FIELD_AUDIT', to: 'PENDING_QC_REVIEW' },
+      [ROLES.QUALITY_CONTROL]: { from: 'PENDING_QC_REVIEW', to: 'PENDING_PARTNER_REVIEW' },
+      [ROLES.MANAGING_PARTNER]: { from: 'PENDING_PARTNER_REVIEW', to: 'PENDING_REGULATORY_FILING' },
+      [ROLES.REGULATORY_FILINGS_OFFICER]: { from: 'PENDING_REGULATORY_FILING', to: 'PENDING_ARCHIVING' },
+      [ROLES.ARCHIVE_OFFICER]: { from: 'PENDING_ARCHIVING', to: 'COMPLETED' },
+    };
+
+    const transition = transitions[userRole];
+
+    if (!transition || currentStage !== transition.from) {
+      throw { status: 403, customMessage: `Your role (${userRole}) cannot submit the contract from its current stage (${currentStage}).` };
+    }
+
+    nextStage = transition.to;
+
+    // Specific checks before advancing
+    if (userRole === ROLES.TECHNICAL_AUDITOR) {
+      // 1. Ensure Trial Balance is confirmed
+      const trialBalance = await prisma.trialBalance.findUnique({ where: { contractId } });
+      if (!trialBalance || trialBalance.status !== 'CONFIRMED') {
+        throw { status: 400, customMessage: "Cannot submit. The trial balance must be uploaded and confirmed first." };
+      }
+
+      // 2. Conditional Workflow: Check if field staff are assigned
+      const assignedFieldStaffCount = await prisma.contractStaff.count({
+        where: {
+          contractId,
+          role: { in: [ROLES.FIELD_AUDITOR, ROLES.ASSISTANT_TECHNICAL_AUDITOR] }
+        }
+      });
+
+      if (assignedFieldStaffCount > 0) {
+        nextStage = 'PENDING_FIELD_AUDIT'; // Go to Field Audit
+      } else {
+        nextStage = 'PENDING_QC_REVIEW'; // Skip Field Audit and go directly to QC
+      }
+
+    } else {
+      // For all other roles, use the predefined linear transition
+      const transition = transitions[userRole];
+      if (!transition || currentStage !== transition.from) {
+        throw { status: 403, customMessage: `Your role (${userRole}) cannot submit the contract from its current stage (${currentStage}).` };
+      }
+      nextStage = transition.to;
+    }
+
+    const updatedContract = await prisma.engagementContract.update({
+      where: { id: contractId },
+      data: { workflowStage: nextStage }
+    });
+
+    // TODO: Add notification logic for the next role in the chain
+    // For example, find users with the role corresponding to `nextStage` and notify them.
+
+    await activityLogService.create({
+      userId: user.id,
+      subscriberId: Number(user.subscriberId),
+      userType: "SUBSCRIBER",
+      action: "SUBMIT_STAGE",
+      message: `User ${user.fullName} submitted contract ${contract.contractNumber} from ${currentStage} to ${nextStage}`
+    });
+
+    return updatedContract;
   }
 
 }; 

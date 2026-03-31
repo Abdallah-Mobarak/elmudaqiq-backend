@@ -131,3 +131,23 @@ exports.removeStaff = async (req, res, next) => {
     next(error);
   }
 };
+
+
+// ===============================
+// Submit Stage & Advance Workflow
+// ===============================
+exports.submitStage = async (req, res, next) => {
+  try {
+    const contract = await engagementContractService.submitStage(
+      req.user,
+      req.params.id
+    );
+
+    res.status(200).json({
+      message: "Contract submitted to the next stage successfully",
+      data: contract
+    });
+  } catch (error) {
+    next(error);
+  }
+};

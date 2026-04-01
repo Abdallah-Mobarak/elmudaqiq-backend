@@ -26,12 +26,7 @@ module.exports = {
       where.responsiblePerson = user.role;
     }
   
-    // 🔍 LOG
-    console.log("=== DEBUG getContractGuides ===");
-    console.log("user.role:", user.role);
-    console.log("user.subscriberId:", user.subscriberId);
-    console.log("contractId:", contractId);
-    console.log("where:", JSON.stringify(where));
+  
   
     // 3. Fetch guides with their documents
     const guides = await prisma.contractReviewGuide.findMany({
@@ -123,12 +118,18 @@ module.exports = {
       throw { status: 404, customMessage: "Contract not found or access denied." };
     }
 
-    // 2. Fetch only items where isApplicable is NULL
+    // 2. Build where clause: only items where isApplicable is NULL, filtered by role
+    const where = {
+      contractId,
+      isApplicable: null // This defines "Pending"
+    };
+
+    if (user.role && !["SUBSCRIBER_OWNER", "ADMIN"].includes(user.role)) {
+      where.responsiblePerson = user.role;
+    }
+
     const pendingGuides = await prisma.contractReviewGuide.findMany({
-      where: {
-        contractId,
-        isApplicable: null // This defines "Pending"
-      },
+      where,
       orderBy: { id: 'asc' }
     });
 

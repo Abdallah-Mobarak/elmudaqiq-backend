@@ -50,7 +50,6 @@ module.exports = {
     const token = jwt.sign(
       {
         id: user.id,
-        fullName: user.fullName,
         role: user.Role.name,
         subscriberId: user.subscriberId,
         branchId: user.branchId,

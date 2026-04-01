@@ -697,6 +697,6 @@ module.exports = {
     });
 
     return updatedContract;
-  }
+  } 
 
 }; 

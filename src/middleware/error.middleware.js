@@ -9,9 +9,14 @@ module.exports = (err, req, res, next) => {
 
   // Prisma unique constraint failed
   if (err && err.code === "P2002") {
-    // try to extract meta target
-    const target = err.meta && err.meta.target ? ` (${err.meta.target})` : "";
-    return res.status(400).json({ message: `Duplicate value exists${target}` });
+    const target = err.meta && err.meta.target ? String(err.meta.target) : "";
+
+    // رسالة مخصصة لخطأ تكرار العقد في نفس التاريخ
+    if (target.includes("commercialRegisterNumber_eng")) {
+      return res.status(400).json({ message: "A contract for this company on this exact engagement date already exists." });
+    }
+
+    return res.status(400).json({ message: `Duplicate value exists (${target})` });
   }
 
   // Prisma foreign key constraint / parent not found
@@ -23,7 +28,7 @@ module.exports = (err, req, res, next) => {
   if (err && err.code === "P2004") {
     return res.status(400).json({ message: "Cannot delete: related data exists" });
   }
-
+ 
   // Custom errors thrown in services: { customMessage, status }
   if (err && err.customMessage) {
     return res.status(err.status || 400).json({ message: err.customMessage });

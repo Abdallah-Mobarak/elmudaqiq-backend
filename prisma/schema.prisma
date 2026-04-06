@@ -739,7 +739,8 @@ model EngagementContract {
   commercialRegisterDate DateTime
   commercialRegisterDateHijri String?
   engagementContractDate DateTime
-  
+  fiscalYearStart DateTime?
+  fiscalYearEnd DateTime?
   // --- Facility Address ---
   postalCode String
   address String

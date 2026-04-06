@@ -14,15 +14,13 @@ module.exports = {
     const branchId = user.branchId ? Number(user.branchId) : null;
     const contractYear = new Date(data.engagementContractDate).getFullYear();
 
-    // Check duplicate contract (Same Commercial Register + Same Year)
+    // Check duplicate contract (Same Commercial Register + Overlapping Fiscal Year)
     const existingContract = await prisma.engagementContract.findFirst({
       where: {
         subscriberId,
         commercialRegisterNumber: data.commercialRegisterNumber,
-        engagementContractDate: {
-          gte: new Date(`${contractYear}-01-01`),
-          lte: new Date(`${contractYear}-12-31`)
-        }
+        fiscalYearStart: { lte: new Date(data.fiscalYearEnd) },
+        fiscalYearEnd: { gte: new Date(data.fiscalYearStart) }
       }
     });
 
@@ -74,12 +72,14 @@ module.exports = {
           ...filePaths,
           workflowStage: "PENDING_AUDIT_MANAGER", // Set initial workflow stage
           contractNumber,
-          status: "INACTIVE",
+          status: "ACTIVE",
           createdById: user.id,
           subscriberId,
           branchId,
           commercialRegisterDate: new Date(data.commercialRegisterDate),
-          engagementContractDate: new Date(data.engagementContractDate)
+          engagementContractDate: new Date(data.engagementContractDate),
+          fiscalYearStart: new Date(data.fiscalYearStart),
+          fiscalYearEnd: new Date(data.fiscalYearEnd)
         } 
       });
 
@@ -268,20 +268,18 @@ module.exports = {
       };
     }
 
-    // Check for duplicates if critical fields are changing (Same CR + Same Year rule)
-    if (data.commercialRegisterNumber || data.engagementContractDate) {
+    // Check for duplicates if critical fields are changing (Same CR + Overlapping Fiscal Year rule)
+    if (data.commercialRegisterNumber || data.fiscalYearStart || data.fiscalYearEnd) {
       const targetCR = data.commercialRegisterNumber || contract.commercialRegisterNumber;
-      const targetDate = data.engagementContractDate ? new Date(data.engagementContractDate) : contract.engagementContractDate;
-      const targetYear = targetDate.getFullYear();
+      const targetStart = data.fiscalYearStart ? new Date(data.fiscalYearStart) : contract.fiscalYearStart;
+      const targetEnd = data.fiscalYearEnd ? new Date(data.fiscalYearEnd) : contract.fiscalYearEnd;
 
       const conflictingContract = await prisma.engagementContract.findFirst({
         where: {
           subscriberId,
           commercialRegisterNumber: targetCR,
-          engagementContractDate: {
-            gte: new Date(`${targetYear}-01-01`),
-            lte: new Date(`${targetYear}-12-31`)
-          },
+          fiscalYearStart: { lte: new Date(targetEnd) },
+          fiscalYearEnd: { gte: new Date(targetStart) },
           id: { not: id } // Exclude current contract from check
         }
       }); 
@@ -320,6 +318,12 @@ module.exports = {
         }),
         ...(data.engagementContractDate && {
           engagementContractDate: new Date(data.engagementContractDate)
+        }),
+        ...(data.fiscalYearStart && {
+          fiscalYearStart: new Date(data.fiscalYearStart)
+        }),
+        ...(data.fiscalYearEnd && {
+          fiscalYearEnd: new Date(data.fiscalYearEnd)
         })
       }
     });

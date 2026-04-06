@@ -306,10 +306,21 @@ module.exports = {
     if (files.facilityLogo)
       fileUpdates.facilityLogo = files.facilityLogo[0].path;
 
+    // Clean up data to remove nested relational objects and read-only fields 
+    // that the frontend might send back in the payload
+    const {
+      id: _id,
+      createdAt,
+      updatedAt,
+      createdBy,
+      auditManager,
+      ...cleanData
+    } = data;
+
     const updatedContract = await prisma.engagementContract.update({
       where: { id },
       data: {
-        ...data,
+        ...cleanData,
         ...fileUpdates,
         status: "INACTIVE",
         auditManagerId: null, // RESET: So it goes back to Manager's queue, not Technical Auditor

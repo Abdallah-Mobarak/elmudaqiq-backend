@@ -15,6 +15,21 @@ exports.calculateBalances = (account) => {
     const movCredit = Number(account.creditMovement) + Number(account.creditMovementAdjustment || 0);
     const netMovement = movDebit - movCredit;
   
+
+// حساب إغلاق الجانب المدين
+const closingDebit = 
+  Number(account.beginningDebit || 0) + 
+  Number(account.beginningDebitAdjustment || 0) + 
+  Number(account.debitMovement || 0) + 
+  Number(account.debitMovementAdjustment || 0);
+
+// حساب إغلاق الجانب الدائن
+const closingCredit = 
+  Number(account.beginningCredit || 0) + 
+  Number(account.beginningCreditAdjustment || 0) + 
+  Number(account.creditMovement || 0) + 
+  Number(account.creditMovementAdjustment || 0);
+
     // 3. Final Balance (حسب معادلات الدكيومنتيشن حرفياً)
     const finalBalance = adjustedBeginningBalance - netMovement;
   
@@ -26,6 +41,8 @@ exports.calculateBalances = (account) => {
     return {
       adjustedBeginningBalance,
       netMovement,
+      closingDebit,
+      closingCredit,
       finalBalance,
       balanceType
     };

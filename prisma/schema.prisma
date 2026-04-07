@@ -896,6 +896,8 @@ model TrialBalanceAccount {
   creditMovementAdjustment  Float @default(0)
   adjustedBeginningBalance Float @default(0)
   netMovement              Float @default(0)
+  closingDebit             Float @default(0)
+  closingCredit            Float @default(0)
   finalBalance             Float @default(0)
   balanceType              String @default("BALANCED")
 

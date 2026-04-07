@@ -147,7 +147,8 @@ exports.exportTrialBalanceExcel = async (req, res, next) => {
 
     const headers = [
       "Account Code", "Account Name", "Beginning Debit", "Beginning Credit",
-      "Debit Movement", "Credit Movement", "Adj Beg Balance", "Net Movement", "Final Balance", "Balance Type"
+      "Debit Movement", "Credit Movement", "Adj Beg Balance", "Net Movement", 
+      "Closing Debit", "Closing Credit", "Final Balance", "Balance Type"
     ];
 
     const rows = trialBalance.accounts.map(acc => [
@@ -159,6 +160,8 @@ exports.exportTrialBalanceExcel = async (req, res, next) => {
       Number(acc.creditMovement) + Number(acc.creditMovementAdjustment),
       Number(acc.adjustedBeginningBalance),
       Number(acc.netMovement),
+      Number(acc.closingDebit),
+      Number(acc.closingCredit),
       Number(acc.finalBalance),
       acc.balanceType
     ]);
@@ -197,10 +200,12 @@ exports.exportTrialBalancePdf = async (req, res, next) => {
     const headers = [
       { label: "Code", width: 60 },
       { label: "Account Name", width: 140 },
-      { label: "Adj Beg Bal", width: 80 },
-      { label: "Net Movement", width: 80 },
-      { label: "Final Balance", width: 80 },
-      { label: "Type", width: 60 }
+      { label: "Adj Beg Bal", width: 70 },
+      { label: "Net Mov", width: 70 },
+      { label: "Closing Dr", width: 70 },
+      { label: "Closing Cr", width: 70 },
+      { label: "Final Bal", width: 70 },
+      { label: "Type", width: 50 }
     ];
 
     const rows = trialBalance.accounts.map(acc => [
@@ -208,6 +213,8 @@ exports.exportTrialBalancePdf = async (req, res, next) => {
       acc.accountName,
       Number(acc.adjustedBeginningBalance).toFixed(2),
       Number(acc.netMovement).toFixed(2),
+      Number(acc.closingDebit).toFixed(2),
+      Number(acc.closingCredit).toFixed(2),
       Number(acc.finalBalance).toFixed(2),
       acc.balanceType
     ]);
@@ -276,6 +283,8 @@ exports.getTrialBalance = async (req, res, next) => {
           beginningCreditAdjustment: true,
           debitMovementAdjustment: true,
           creditMovementAdjustment: true,
+          closingDebit: true,
+          closingCredit: true,
         },
         where,
       }),
@@ -362,4 +371,4 @@ exports.updateAccountAdjustments = async (req, res, next) => {
     console.error("Update Adjustment Error:", error);
     next(error);
   }
-};
+}; 

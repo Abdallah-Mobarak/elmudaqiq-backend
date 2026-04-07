@@ -470,11 +470,53 @@ module.exports = {
         },
         status: "active"
       },
-      select: { id: true, fullName: true, email: true, jobTitle: true, Role: { select: { name: true } } }
+      select: { 
+        id: true, 
+        fullName: true, 
+        email: true, 
+        jobTitle: true, 
+        Role: { select: { name: true } }
+      }
     });
 
-    return eligibleUsers;
+    if (eligibleUsers.length === 0) return [];
+
+    // 1. جلب التعيينات الخاصة بهؤلاء الموظفين فقط
+    const userIds = eligibleUsers.map(u => u.id);
+    const assignments = await prisma.contractStaff.findMany({
+      where: { userId: { in: userIds } }
+    });
+
+    // 2. جلب العقود الفعالة لتلك التعيينات
+    const assignedContractIds = [...new Set(assignments.map(a => a.contractId))];
+    const activeContracts = await prisma.engagementContract.findMany({
+      where: {
+        id: { in: assignedContractIds },
+        status: { not: 'ARCHIVE' }
+      },
+      select: { id: true, customerName: true }
+    });
+
+    // عمل Map للعقود لتسريع البحث
+    const activeContractsMap = new Map(activeContracts.map(c => [c.id, c.customerName]));
+
+    return eligibleUsers.map(staff => {
+      // 3. تصفية العقود الخاصة بالموظف وجلب أسماء المشاريع الفعالة
+      const userContractIds = assignments.filter(a => a.userId === staff.id).map(a => a.contractId);
+      const activeBudgetsNames = userContractIds.map(cid => activeContractsMap.get(cid)).filter(Boolean); 
+
+      return {
+        id: staff.id,
+        fullName: staff.fullName,
+        email: staff.email,
+        jobTitle: staff.jobTitle,
+        Role: staff.Role,
+        activeBudgetsCount: activeBudgetsNames.length,
+        activeBudgetsNames: activeBudgetsNames
+      };
+    });
   },
+  
  
   // ===============================
   // Assign Staff (Audit Manager)

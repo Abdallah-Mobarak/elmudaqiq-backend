@@ -505,12 +505,16 @@ module.exports = {
       const userContractIds = assignments.filter(a => a.userId === staff.id).map(a => a.contractId);
       const activeBudgetsNames = userContractIds.map(cid => activeContractsMap.get(cid)).filter(Boolean); 
 
+      // 4. التحقق مما إذا كان الموظف معينًا بالفعل في العقد الحالي
+      const isAssigned = assignments.some(a => a.userId === staff.id && a.contractId === contract.id);
+
       return {
         id: staff.id,
         fullName: staff.fullName,
         email: staff.email,
         jobTitle: staff.jobTitle,
         Role: staff.Role,
+        isAssigned: isAssigned,
         activeBudgetsCount: activeBudgetsNames.length,
         activeBudgetsNames: activeBudgetsNames
       };

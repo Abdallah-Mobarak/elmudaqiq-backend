@@ -179,6 +179,8 @@ model AccountGuide {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  trialBalanceAccounts TrialBalanceAccount[]
+
   @@index([subscriberId])
   @@index([accountNumber])
   @@index([level])
@@ -901,5 +903,11 @@ model TrialBalanceAccount {
   finalBalance             Float @default(0)
   balanceType              String @default("BALANCED")
 
+  assignedAccountGuideId Int?
+  assignedAccountGuide   AccountGuide? @relation(fields: [assignedAccountGuideId], references: [id], onDelete: SetNull)
+
+  worksheetOrder         Int?
+
   @@unique([trialBalanceId, accountCode])
+  @@index([assignedAccountGuideId])
 }

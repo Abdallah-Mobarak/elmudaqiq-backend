@@ -2,6 +2,8 @@ const prisma = require("../config/prisma");
 const { ROLES } = require("../config/roles");
 const notificationService = require("./notification.service");
 const activityLogService = require("./activityLog.service");
+const notify = require("../utils/notify");
+const { NOTIFICATION_TYPES, ENTITY_TYPES } = require("../config/notificationTypes");
 
 module.exports = {
  
@@ -110,27 +112,49 @@ module.exports = {
     });
 
     // --- NOTIFICATION LOGIC (After Transaction) ---
-    // Notify Audit Managers in the same branch
+    const notifPayload = {
+      title: "عقد جديد",
+      message: `تم إنشاء عقد جديد للعميل (${data.customerName}) بحالة ${result.status}${branchId ? "" : ""}.`,
+      type: NOTIFICATION_TYPES.CONTRACT_CREATED,
+      entityType: ENTITY_TYPES.CONTRACT,
+      entityId: result.id,
+    };
+
+    // 1. Notify Audit Managers (existing behavior)
     try {
       const auditManagers = await prisma.user.findMany({
         where: {
           subscriberId,
-          branchId: branchId || undefined, // If branchId is null, maybe notify all? Better stick to branch logic if exists
-          Role: { name: ROLES.AUDIT_MANAGER }
-        }
+          branchId: branchId || undefined,
+          Role: { name: ROLES.AUDIT_MANAGER },
+        },
+        select: { id: true },
       });
 
       for (const manager of auditManagers) {
-        await notificationService.create({
-          title: "New Contract Created",
-          message: `A new contract (${data.customerName}) has been created and is waiting for your review.`,
-          type: "WORKFLOW",
-          subscriberId,
-          userId: manager.id
+        await notify.notifyUser(manager.id, {
+          title: "عقد جديد بانتظار المراجعة",
+          message: `تم إنشاء عقد جديد للعميل (${data.customerName}) وينتظر مراجعتك.`,
+          type: NOTIFICATION_TYPES.CONTRACT_CREATED,
+          entityType: ENTITY_TYPES.CONTRACT,
+          entityId: result.id,
+          sendEmail: true,
         });
       }
     } catch (error) {
-      console.error("Failed to send notifications:", error);
+      console.error("Failed to notify audit managers:", error);
+    }
+
+    // 2. Notify Subscriber Owner
+    await notify.notifySubscriberOwner(subscriberId, notifPayload);
+
+    // 3. Notify Branch Manager (if contract belongs to a branch)
+    if (branchId) {
+      await notify.notifyBranchManager(branchId, {
+        ...notifPayload,
+        title: "عقد جديد في فرعك",
+        message: `تم إضافة عقد جديد للعميل (${data.customerName}) في فرعك.`,
+      });
     }
 
     return result; // 'result' is the newContract from transaction
@@ -438,6 +462,29 @@ module.exports = {
       data: updateData
     });
 
+    // --- NOTIFICATION LOGIC ---
+    // Case 1: Audit manager returned contract to secretary with comments (status = ACTIVE)
+    if (data.status === "ACTIVE" && updatedContract.createdById) {
+      await notify.notifyUser(updatedContract.createdById, {
+        title: "تم إعادة العقد إليك بتعليقات",
+        message: `قام مدير المراجعة بإعادة العقد (${updatedContract.customerName}) بتعليقات${data.comments ? `: ${data.comments}` : "."}`,
+        type: NOTIFICATION_TYPES.CONTRACT_ACTIVATED,
+        entityType: ENTITY_TYPES.CONTRACT,
+        entityId: updatedContract.id,
+      });
+    }
+
+    // Case 2: Audit manager approved the contract → advanced to Technical Audit
+    if (updateData.workflowStage === "PENDING_TECHNICAL_AUDIT") {
+      await notify.notifyUsersByRole(subscriberId, ROLES.TECHNICAL_AUDITOR, {
+        title: "عقد جديد جاهز للتدقيق الفني",
+        message: `تم اعتماد العقد (${updatedContract.customerName}) من مدير المراجعة وأصبح جاهزاً للتدقيق الفني.`,
+        type: NOTIFICATION_TYPES.CONTRACT_STAGE_ADVANCED,
+        entityType: ENTITY_TYPES.CONTRACT,
+        entityId: updatedContract.id,
+      });
+    }
+
     return updatedContract;
 
   },
@@ -616,12 +663,12 @@ module.exports = {
       });
 
       // --- NOTIFICATION LOGIC ---
-      await notificationService.create({
-        title: "New Assignment",
-        message: `You have been assigned as ${item.role} to Contract ${contract.contractNumber}.`,
-        type: "WORKFLOW",
-        subscriberId: Number(user.subscriberId),
-        userId: item.userId
+      await notify.notifyUser(item.userId, {
+        title: "تم تعيينك على عقد جديد",
+        message: `تم تعيينك كـ ${item.role} على العقد (${contract.customerName || contract.contractNumber}).`,
+        type: NOTIFICATION_TYPES.CONTRACT_STAGE_ADVANCED,
+        entityType: ENTITY_TYPES.CONTRACT,
+        entityId: contract.id,
       });
 
       results.push(newAssignment);
@@ -746,8 +793,53 @@ module.exports = {
       data: { workflowStage: nextStage }
     });
 
-    // TODO: Add notification logic for the next role in the chain
-    // For example, find users with the role corresponding to `nextStage` and notify them.
+    // --- NOTIFICATION LOGIC ---
+    // Map each next stage to the roles that should receive the notification.
+    const stageToRoles = {
+      PENDING_FIELD_AUDIT: [ROLES.FIELD_AUDITOR, ROLES.ASSISTANT_TECHNICAL_AUDITOR],
+      PENDING_QC_REVIEW: [ROLES.QUALITY_CONTROL],
+      PENDING_PARTNER_REVIEW: [ROLES.MANAGING_PARTNER],
+      PENDING_REGULATORY_FILING: [ROLES.REGULATORY_FILINGS_OFFICER],
+      PENDING_ARCHIVING: [ROLES.ARCHIVE],
+    };
+
+    const subscriberId = Number(user.subscriberId);
+    const basePayload = {
+      type: NOTIFICATION_TYPES.CONTRACT_STAGE_ADVANCED,
+      entityType: ENTITY_TYPES.CONTRACT,
+      entityId: updatedContract.id,
+    };
+
+    if (nextStage === "COMPLETED") {
+      // Final stage — notify secretary (creator) + audit manager
+      const recipients = [];
+      if (updatedContract.createdById) recipients.push(updatedContract.createdById);
+      if (updatedContract.auditManagerId) recipients.push(updatedContract.auditManagerId);
+
+      for (const uid of recipients) {
+        await notify.notifyUser(uid, {
+          ...basePayload,
+          title: "اكتمل العقد",
+          message: `تم إنهاء جميع مراحل العقد (${updatedContract.customerName}) بنجاح.`,
+        });
+      }
+    } else if (stageToRoles[nextStage]) {
+      // Notify next role
+      await notify.notifyUsersByRoles(subscriberId, stageToRoles[nextStage], {
+        ...basePayload,
+        title: "عقد جديد بانتظار دورك",
+        message: `العقد (${updatedContract.customerName}) انتقل إلى مرحلة ${nextStage} وينتظر إجراءك.`,
+      });
+
+      // Always notify the audit manager about progress
+      if (updatedContract.auditManagerId) {
+        await notify.notifyUser(updatedContract.auditManagerId, {
+          ...basePayload,
+          title: "انتقال مرحلة عقد",
+          message: `العقد (${updatedContract.customerName}) انتقل من ${currentStage} إلى ${nextStage}.`,
+        });
+      }
+    }
 
     await activityLogService.create({
       userId: user.id,
@@ -758,6 +850,6 @@ module.exports = {
     });
 
     return updatedContract;
-  } 
+  }
 
 }; 

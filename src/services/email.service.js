@@ -34,6 +34,35 @@ module.exports.sendOTPEmail = async (email, otp) => {
   }
 };
 
+/**
+ * Send a generic notification email.
+ * Safe helper: logs on error and never throws, so a failed email never breaks
+ * the primary business action.
+ */
+module.exports.sendNotificationEmail = async ({ to, title, message }) => {
+  if (!to) return { skipped: true, reason: "no_recipient" };
+  try {
+    await transporter.sendMail({
+      from: process.env.FROM_EMAIL,
+      to,
+      subject: title,
+      html: `
+        <div style="font-family: Arial, sans-serif; direction: rtl; text-align: right;">
+          <h2>${title}</h2>
+          <p>${message}</p>
+          <hr>
+          <p style="color:#777; font-size: 12px;">هذا البريد تم إرساله تلقائياً من نظام المدقق.</p>
+        </div>
+      `,
+      text: `${title}\n\n${message}`,
+    });
+    return { sent: true };
+  } catch (error) {
+    console.error("sendNotificationEmail failed:", error.message);
+    return { sent: false, error: error.message };
+  }
+};
+
 // Function to send Welcome Email to new Subscriber
 module.exports.sendSubscriberWelcomeEmail = async ({ to, loginUrl, email, tempPassword }) => {
   try {

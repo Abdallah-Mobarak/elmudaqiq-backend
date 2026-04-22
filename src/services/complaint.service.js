@@ -1,5 +1,7 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const notify = require("../utils/notify");
+const { NOTIFICATION_TYPES, ENTITY_TYPES } = require("../config/notificationTypes");
 
 module.exports = {
 
@@ -28,7 +30,7 @@ module.exports = {
       throw { status: 400, message: `Invalid complaint type. Allowed values are: ${validTypes.join(", ")}` };
     }
 
-    return prisma.complaint.create({
+    const complaint = await prisma.complaint.create({
       data: {
         subscriberId: Number(data.subscriberId),
         subscriberName: data.subscriberName,
@@ -38,6 +40,17 @@ module.exports = {
         type: data.type,
       },
     });
+
+    // Notify all admins that a new complaint was submitted
+    await notify.notifyAdmins({
+      title: "شكوى جديدة",
+      message: `تم استلام شكوى جديدة من ${complaint.subscriberName} (نوع: ${complaint.type}).`,
+      type: NOTIFICATION_TYPES.COMPLAINT_SUBMITTED,
+      entityType: ENTITY_TYPES.COMPLAINT,
+      entityId: complaint.id,
+    });
+
+    return complaint;
   },
 
   // ===============================
@@ -105,13 +118,25 @@ module.exports = {
       throw { status: 400, message: "Response is required" };
     }
 
-    return prisma.complaint.update({
+    const updated = await prisma.complaint.update({
       where: { id: Number(id) },
       data: {
         response,
         respondedAt: new Date(),
       },
     });
+
+    // Notify the subscriber owner that admin has replied (also via email)
+    await notify.notifySubscriberOwner(updated.subscriberId, {
+      title: "رد الإدارة على شكواك",
+      message: "قامت الإدارة بالرد على الشكوى المقدمة منك. يرجى مراجعة الرد.",
+      type: NOTIFICATION_TYPES.COMPLAINT_REPLIED,
+      entityType: ENTITY_TYPES.COMPLAINT,
+      entityId: updated.id,
+      sendEmail: true,
+    });
+
+    return updated;
   },
 
   // ===============================

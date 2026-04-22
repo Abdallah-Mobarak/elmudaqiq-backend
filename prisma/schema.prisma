@@ -588,9 +588,9 @@ model Notification {
   id Int @id @default(autoincrement())
 
   title   String
-  message String
+  message String @db.Text
 
-  // Subscriber Notification  
+  // Subscriber Notification
   subscriberId Int?
   subscriber   Subscriber? @relation(fields: [subscriberId], references: [id])
 
@@ -598,12 +598,20 @@ model Notification {
   userId Int?
   user   User? @relation(fields: [userId], references: [id])
 
-  // Admin Notification 
+  // Admin Notification
   isRead Boolean @default(false)
 
-  type String // RENEWAL | COMPLAINT | SYSTEM
+  type String // CONTRACT_CREATED | CONTRACT_ACTIVATED | CONTRACT_STAGE_ADVANCED | COMPLAINT_SUBMITTED | COMPLAINT_REPLIED | SUBSCRIPTION_RENEWAL_DUE | SUBSCRIPTION_EXPIRED | SYSTEM_ERROR
+
+  // For deep-linking from frontend when notification is clicked
+  entityType String? // CONTRACT | COMPLAINT | SUBSCRIPTION
+  entityId   String?
 
   createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@index([subscriberId, isRead])
+  @@index([createdAt])
 }
 
 model ActivityLog {
@@ -910,4 +918,4 @@ model TrialBalanceAccount {
 
   @@unique([trialBalanceId, accountCode])
   @@index([assignedAccountGuideId])
-}
+}   

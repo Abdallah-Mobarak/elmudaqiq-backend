@@ -8,10 +8,11 @@ const upload = require("../middleware/uploadSubscriberFiles");
 const PERMISSIONS = require("../config/permissions");
 
 router.use(authMiddleware);
-
+  
 router.post("/", requirePermission(PERMISSIONS.CREATE_USER), upload.single("profilePhoto"), userController.create);
 router.get("/", requirePermission(PERMISSIONS.VIEW_USERS), userController.getAll);
 router.get("/:id", requirePermission(PERMISSIONS.VIEW_USERS), userController.getOne);
 router.put("/:id", requirePermission(PERMISSIONS.UPDATE_USER), upload.single("profilePhoto"), userController.update);
 
-module.exports = router;
+module.exports = router; 
+ 

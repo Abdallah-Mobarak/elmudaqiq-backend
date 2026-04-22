@@ -7,6 +7,8 @@ const exportExcelUtil = require("../utils/fileHandlers/exportExcel");
 const exportPDFUtil = require("../utils/fileHandlers/exportPdf");
 const generatePassword = require("../utils/passwordGenerator");
 const { sendSubscriberWelcomeEmail } = require("./email.service");
+const notify = require("../utils/notify");
+const { NOTIFICATION_TYPES, ENTITY_TYPES } = require("../config/notificationTypes");
 
 // ===============================
 // Utils
@@ -840,6 +842,15 @@ exports.upgradeSubscription = async (subscriberId, planId) => {
       },
       include: { plan: true },
     });
+
+    // 3. Notify the subscriber owner (outside the critical txn, fire-and-forget via safe helper)
+    notify.notifySubscriberOwner(subscriberId, {
+      title: "تم ترقية اشتراكك",
+      message: `تم ترقية اشتراكك إلى باقة (${plan.name}) حتى تاريخ ${endDate.toISOString().slice(0, 10)}.`,
+      type: NOTIFICATION_TYPES.SUBSCRIPTION_RENEWAL_DUE,
+      entityType: ENTITY_TYPES.SUBSCRIPTION,
+      entityId: newSubscription.id,
+    }).catch((e) => console.error("Upgrade notify failed:", e.message));
 
     return newSubscription;
   });

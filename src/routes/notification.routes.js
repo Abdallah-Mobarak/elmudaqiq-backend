@@ -19,18 +19,31 @@ router.get(
   notificationController.getAll
 );
 
-// Get MY notifications (Logged in user)
+// Get MY notifications (Logged in user) — supports ?page=&limit=&isRead=true|false
 router.get(
   "/mine",
   authMiddleware,
   notificationController.getMyNotifications
 );
 
-// Mark notification as read
+// Get MY unread count (for badge)
+router.get(
+  "/mine/unread-count",
+  authMiddleware,
+  notificationController.getUnreadCount
+);
+
+// Mark all MY notifications as read
+router.patch(
+  "/mine/mark-all-read",
+  authMiddleware,
+  notificationController.markAllAsRead
+);
+
+// Mark a single notification as read (owner OR admin)
 router.patch(
   "/:id/read",
   authMiddleware,
-  adminMiddleware,
   notificationController.markAsRead
 );
 

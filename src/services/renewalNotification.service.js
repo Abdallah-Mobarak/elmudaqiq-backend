@@ -1,92 +1,92 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
-const notificationService = require("./notification.service");
+const prisma = require("../config/prisma");
+const notify = require("../utils/notify");
+const { NOTIFICATION_TYPES, ENTITY_TYPES } = require("../config/notificationTypes");
 
-module.exports = {
+/**
+ * Check active subscriptions for expiry state and send notifications.
+ * Notifies the subscriber owner + the admin feed.
+ *
+ * Thresholds:
+ *   - 7 days remaining  → warn owner + admins
+ *   - 1 day remaining   → warn owner + admins
+ *   - expired           → notify admins, mark subscription EXPIRED
+ */
+const checkAndSendRenewalNotifications = async () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  // Check subscriptions and send auto renewal notifications
-  checkAndSendRenewalNotifications: async () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  const activeSubscriptions = await prisma.subscription.findMany({
+    where: { status: "ACTIVE" },
+    include: {
+      subscriber: { select: { id: true, licenseName: true, lastRenewalNotification: true } },
+      plan: { select: { name: true } },
+    },
+  });
 
-    const subscribers = await prisma.subscriber.findMany({
-      where: {
-        subscriptionEndDate: { not: null },
-      },
-    });
+  for (const sub of activeSubscriptions) {
+    const endDate = new Date(sub.endDate);
+    endDate.setHours(0, 0, 0, 0);
 
-    for (const subscriber of subscribers) {
-      const endDate = new Date(subscriber.subscriptionEndDate);
-      endDate.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-      const diffTime = endDate.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      // Prevent duplicate notifications in the same day
-      if (
-        subscriber.lastRenewalNotification &&
-        new Date(subscriber.lastRenewalNotification).toDateString() === today.toDateString()
-      ) {
-        continue;
-      }
-
-      // Case: Subscription expired
-      if (diffDays < 0) {
-        await prisma.subscriber.update({
-          where: { id: subscriber.id },
-          data: { renewalStatus: "NOT_RENEWED" },
-        });
-        continue;
-      }
-
-      // Case: 7 days before expiry
-      if (diffDays === 7) {
-        await notificationService.create({
-          title: "Subscription Expiry Warning",
-          message: `Subscription of ${subscriber.licenseName} will expire in 7 days`,
-          type: "RENEWAL",
-          subscriberId: subscriber.id,
-        });
-
-        await prisma.subscriber.update({
-          where: { id: subscriber.id },
-          data: {
-            lastRenewalNotification: today,
-            renewalStatus: "PENDING",
-          },
-        });
-      }
-
-      // Case: 1 day before expiry
-      if (diffDays === 1) {
-        await notificationService.create({
-          title: "Subscription Expiry Warning",
-          message: `Subscription of ${subscriber.licenseName} will expire tomorrow`,
-          type: "RENEWAL",
-          subscriberId: subscriber.id,
-        });
-
-        await prisma.subscriber.update({
-          where: { id: subscriber.id },
-          data: {
-            lastRenewalNotification: today,
-            renewalStatus: "PENDING",
-          },
-        });
-      }
-
-      // Case: Renewed manually (future date far away)
-      if (diffDays > 7) {
-        if (subscriber.renewalStatus !== "RENEWED") {
-          await prisma.subscriber.update({
-            where: { id: subscriber.id },
-            data: { renewalStatus: "RENEWED" },
-          });
-        }
-      }
+    // Prevent duplicate notifications within the same day per subscriber
+    if (
+      sub.subscriber.lastRenewalNotification &&
+      new Date(sub.subscriber.lastRenewalNotification).toDateString() === today.toDateString()
+    ) {
+      continue;
     }
 
-    return true;
-  },
+    // Case: expired → mark + notify admins
+    if (diffDays < 0) {
+      await prisma.subscription.update({
+        where: { id: sub.id },
+        data: { status: "EXPIRED" },
+      });
+      await prisma.subscriber.update({
+        where: { id: sub.subscriberId },
+        data: { renewalStatus: "NOT_RENEWED" },
+      });
 
+      const payload = {
+        title: "اشتراك منتهي",
+        message: `انتهى اشتراك (${sub.subscriber.licenseName}) على باقة (${sub.plan.name}).`,
+        type: NOTIFICATION_TYPES.SUBSCRIPTION_EXPIRED,
+        entityType: ENTITY_TYPES.SUBSCRIPTION,
+        entityId: sub.id,
+        sendEmail: true,
+      };
+      await notify.notifyAdmins(payload);
+      await notify.notifySubscriberOwner(sub.subscriberId, payload);
+      continue;
+    }
+
+    // Case: 7 or 1 day warning
+    if (diffDays === 7 || diffDays === 1) {
+      const payload = {
+        title: "تنبيه انتهاء الاشتراك",
+        message:
+          diffDays === 1
+            ? `اشتراك (${sub.subscriber.licenseName}) سينتهي غداً.`
+            : `اشتراك (${sub.subscriber.licenseName}) سينتهي خلال 7 أيام.`,
+        type: NOTIFICATION_TYPES.SUBSCRIPTION_RENEWAL_DUE,
+        entityType: ENTITY_TYPES.SUBSCRIPTION,
+        entityId: sub.id,
+        // Email only on the last day to avoid inbox spam
+        sendEmail: diffDays === 1,
+      };
+
+      await notify.notifyAdmins(payload);
+      await notify.notifySubscriberOwner(sub.subscriberId, payload);
+
+      await prisma.subscriber.update({
+        where: { id: sub.subscriberId },
+        data: { lastRenewalNotification: today, renewalStatus: "PENDING" },
+      });
+    }
+  }
+
+  return true;
 };
+
+module.exports = { checkAndSendRenewalNotifications };

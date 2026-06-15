@@ -1,0 +1,122 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-fs00-4e5f-9999-almudaqiqfs01",
+    "name": "ALMUDAQIQ - Financial Statements",
+    "description": "Test the Financial Statements (Statement of Financial Position + Income) as JSON and PDF.\n\nSteps:\n1) Edit the Collection variables (Variables tab): baseUrl, tenant, email, password, contractId.\n2) Run request (1) Login - it auto-saves the token into the {{token}} variable.\n3) Run any of the statement requests.\n\nPDF note: use the arrow next to Send -> 'Send and Download' to save and open the file.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000", "type": "string" },
+    { "key": "tenant", "value": "YOUR_SUBSCRIBER_SUBDOMAIN", "type": "string" },
+    { "key": "email", "value": "user@example.com", "type": "string" },
+    { "key": "password", "value": "YOUR_PASSWORD", "type": "string" },
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "contractId", "value": "YOUR_CONTRACT_ID", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1. Login (auto-saves token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let json = {};",
+              "try { json = pm.response.json(); } catch (e) {}",
+              "const token =",
+              "  json.token ||",
+              "  json.accessToken ||",
+              "  json.access_token ||",
+              "  (json.data && (json.data.token || json.data.accessToken)) ||",
+              "  (json.user && json.user.token);",
+              "if (token) {",
+              "  pm.collectionVariables.set('token', token);",
+              "  console.log('Token saved to {{token}}');",
+              "} else {",
+              "  console.log('No token found in response. Inspect the response shape:', JSON.stringify(json));",
+              "}",
+              "pm.test('login status ok', function () {",
+              "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-tenant", "value": "{{tenant}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "login"]
+        },
+        "description": "Login. The x-tenant header is the subscriber subdomain. The token is saved automatically."
+      }
+    },
+    {
+      "name": "2. Statement of Financial Position (JSON)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/financial-statements/{{contractId}}/position",
+          "host": ["{{baseUrl}}"],
+          "path": ["financial-statements", "{{contractId}}", "position"]
+        },
+        "description": "Statement of Financial Position as JSON. Check totals.balanced and mappedAccounts."
+      }
+    },
+    {
+      "name": "3. Statement of Comprehensive Income (JSON)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/financial-statements/{{contractId}}/income",
+          "host": ["{{baseUrl}}"],
+          "path": ["financial-statements", "{{contractId}}", "income"]
+        },
+        "description": "Statement of Comprehensive Income as JSON."
+      }
+    },
+    {
+      "name": "4. Statement of Financial Position (PDF)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/financial-statements/{{contractId}}/position/pdf",
+          "host": ["{{baseUrl}}"],
+          "path": ["financial-statements", "{{contractId}}", "position", "pdf"]
+        },
+        "description": "Statement of Financial Position as PDF. Use 'Send and Download' to save the file."
+      }
+    },
+    {
+      "name": "5. Statement of Comprehensive Income (PDF)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/financial-statements/{{contractId}}/income/pdf",
+          "host": ["{{baseUrl}}"],
+          "path": ["financial-statements", "{{contractId}}", "income", "pdf"]
+        },
+        "description": "Statement of Comprehensive Income as PDF. Use 'Send and Download' to save the file."
+      }
+    }
+  ]
+}

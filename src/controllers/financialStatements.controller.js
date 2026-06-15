@@ -1,0 +1,100 @@
+const financialStatements = require("../services/financialStatements.service");
+const { renderPositionStatement, renderIncomeStatement } = require("../utils/fileHandlers/renderStatementHtml");
+const { renderFullReport } = require("../utils/fileHandlers/renderReportSections");
+const exportPdfFromHtml = require("../utils/fileHandlers/exportPdfFromHtml");
+
+/**
+ * قائمة المركز المالي
+ * GET /financial-statements/:contractId/position
+ */
+exports.getStatementOfFinancialPosition = async (req, res, next) => {
+  try {
+    const { contractId } = req.params;
+    const data = await financialStatements.generateStatementOfFinancialPosition(contractId);
+    res.status(200).json(data);
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    console.error("Statement of Financial Position Error:", error);
+    next(error);
+  }
+};
+
+/**
+ * قائمة الدخل الشامل
+ * GET /financial-statements/:contractId/income
+ */
+exports.getStatementOfIncome = async (req, res, next) => {
+  try {
+    const { contractId } = req.params;
+    const data = await financialStatements.generateStatementOfIncome(contractId);
+    res.status(200).json(data);
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    console.error("Statement of Income Error:", error);
+    next(error);
+  }
+};
+
+/**
+ * قائمة المركز المالي — PDF
+ * GET /financial-statements/:contractId/position/pdf
+ */
+exports.getStatementOfFinancialPositionPdf = async (req, res, next) => {
+  try {
+    const { contractId } = req.params;
+    const data = await financialStatements.generateStatementOfFinancialPosition(contractId);
+    const html = renderPositionStatement(data);
+    const { buffer } = await exportPdfFromHtml({ html, filePrefix: `position_${contractId}` });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="statement_of_financial_position.pdf"`);
+    res.status(200).send(buffer);
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    console.error("Position PDF Error:", error);
+    next(error);
+  }
+};
+
+/**
+ * قائمة الدخل الشامل — PDF
+ * GET /financial-statements/:contractId/income/pdf
+ */
+exports.getStatementOfIncomePdf = async (req, res, next) => {
+  try {
+    const { contractId } = req.params;
+    const data = await financialStatements.generateStatementOfIncome(contractId);
+    const html = renderIncomeStatement(data);
+    const { buffer } = await exportPdfFromHtml({ html, filePrefix: `income_${contractId}` });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="statement_of_income.pdf"`);
+    res.status(200).send(buffer);
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    console.error("Income PDF Error:", error);
+    next(error);
+  }
+};
+
+/**
+ * التقرير الكامل (غلاف + فهرس + تقرير المراجع + القوائم + الإيضاحات) — PDF
+ * GET /financial-statements/:contractId/full/pdf?opinion=UNQUALIFIED
+ */
+exports.getFullReportPdf = async (req, res, next) => {
+  try {
+    const { contractId } = req.params;
+    const opinionType = (req.query.opinion || "UNQUALIFIED").toUpperCase();
+    const { contract, model, position, income } = await financialStatements.generateFullReport(contractId);
+    const html = renderFullReport({ contract, model, position, income, opinionType });
+    const { buffer } = await exportPdfFromHtml({ html, filePrefix: `full_report_${contractId}` });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="financial_statements_report.pdf"`);
+    res.status(200).send(buffer);
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    console.error("Full Report PDF Error:", error);
+    next(error);
+  }
+};

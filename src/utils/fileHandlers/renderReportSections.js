@@ -223,24 +223,115 @@ function changesInEquityBody(contract, position, income, terms) {
 // ---------------------------------------------------------------------------
 // Statement of Cash Flows (structure — full movement analysis needs comparatives)
 // ---------------------------------------------------------------------------
-function cashFlowsBody(contract, income) {
-  const net = income && income.totals ? (Array.isArray(income.totals.netResult) ? income.totals.netResult[0] : income.totals.netResult) : 0;
-  return `<div class="sheet">
-    <div class="statement-header">
+const isCashLine = (name) => /(نقد|صندوق|بنك|وما في حكم)/.test(String(name || ""));
+
+function cashFlowsBody(contract, position, income, terms) {
+  const np = (position.periods || []).length;
+  const cur = (a) => (Array.isArray(a) ? a[0] : a) || 0;
+  const prior = (a) => (Array.isArray(a) ? a[1] : 0) || 0;
+  const netIncome = income && income.totals ? cur(income.totals.netResult) : 0;
+
+  const header = `<div class="statement-header">
       <div class="company">${esc(contract.customerName || "")}</div>
       <div class="entity">${entityLine(contract)}</div>
       <div class="title">قائمة التدفقات النقدية</div>
       <div class="date">للسنة المالية المنتهية في ${fiscalDateLabel(contract)}</div>
-    </div>
-    <table class="fs">
-      <tbody>
+    </div>`;
+
+  // Single period → structure only (movement analysis needs comparatives).
+  if (np < 2) {
+    return `<div class="sheet">${header}
+      <table class="fs"><tbody>
         <tr class="section-head"><td class="col-caption" colspan="2">التدفقات النقدية من الأنشطة التشغيلية</td></tr>
-        <tr class="line"><td class="col-caption">صافي الدخل للسنة</td><td class="amount">${money(net)}</td></tr>
-        <tr class="section-head"><td class="col-caption" colspan="2">التدفقات النقدية من الأنشطة الاستثمارية</td></tr>
-        <tr class="section-head"><td class="col-caption" colspan="2">التدفقات النقدية من الأنشطة التمويلية</td></tr>
-      </tbody>
-    </table>
-    <div class="footnote">ملاحظة: يتطلب إعداد قائمة التدفقات النقدية الكاملة تحليل الحركة بين أرصدة السنة الحالية والسنة المقارنة (يُستكمل عند رفع ميزان السنة السابقة).</div>
+        <tr class="line"><td class="col-caption">صافي الدخل للسنة</td><td class="amount">${money(netIncome)}</td></tr>
+        <tr class="section-head"><td class="col-caption" colspan="2">الأنشطة الاستثمارية</td></tr>
+        <tr class="section-head"><td class="col-caption" colspan="2">الأنشطة التمويلية</td></tr>
+      </tbody></table>
+      <div class="footnote">ملاحظة: تُستكمل قائمة التدفقات النقدية عند توفّر أرصدة السنة السابقة (تحليل الحركة).</div>
+    </div>`;
+  }
+
+  // Indirect method from the period-over-period deltas. Classify every balance
+  // sheet line (except cash) into operating / investing / financing; the sum
+  // reconciles to the change in cash by the accounting identity.
+  const operating = [];
+  const investing = [];
+  const financing = [];
+  let openingCash = 0;
+  let closingCash = 0;
+  let distributions = 0;
+
+  const sectionByKey = Object.fromEntries((position.sections || []).map((s) => [s.key, s]));
+  const walk = (sec, fn) => {
+    if (!sec) return;
+    for (const g of sec.groups || []) {
+      const nonCurrent = /غير\s*متداول/.test(String(g.title || ""));
+      for (const line of g.lines || []) fn(line, nonCurrent);
+    }
+  };
+
+  // Assets: an increase USES cash (−Δ). Cash itself is the reconciliation target.
+  walk(sectionByKey.ASSET, (line, nonCurrent) => {
+    const d = cur(line.amounts) - prior(line.amounts);
+    if (isCashLine(line.name)) {
+      openingCash += prior(line.amounts);
+      closingCash += cur(line.amounts);
+      return;
+    }
+    const item = { label: `التغير في ${line.name}`, amount: -d };
+    (nonCurrent ? investing : operating).push(item);
+  });
+
+  // Liabilities: an increase PROVIDES cash (+Δ). Non-current → financing.
+  walk(sectionByKey.LIABILITY, (line, nonCurrent) => {
+    const d = cur(line.amounts) - prior(line.amounts);
+    (nonCurrent ? financing : operating).push({ label: `التغير في ${line.name}`, amount: d });
+  });
+
+  // Equity: capital changes → financing; retained earnings split into net income
+  // (operating start) and distributions (financing).
+  walk(sectionByKey.EQUITY, (line) => {
+    const d = cur(line.amounts) - prior(line.amounts);
+    if (isRetainedEarnings(line.name)) {
+      distributions = netIncome - d; // closing = opening + netIncome − distributions
+    } else {
+      financing.push({ label: `التغير في ${line.name}`, amount: d });
+    }
+  });
+  if (Math.abs(distributions) > 0.005) financing.push({ label: "توزيعات أرباح / مسحوبات", amount: -distributions });
+
+  const sumItems = (arr) => arr.reduce((s, x) => s + x.amount, 0);
+  const opTotal = netIncome + sumItems(operating);
+  const invTotal = sumItems(investing);
+  const finTotal = sumItems(financing);
+  const netChange = opTotal + invTotal + finTotal;
+
+  const lineRow = (label, amount, cls = "line") =>
+    `<tr class="${cls}"><td class="col-caption">${esc(label)}</td><td class="amount">${money(amount)}</td></tr>`;
+  const rows = [];
+  rows.push(`<tr class="section-head"><td class="col-caption" colspan="2">التدفقات النقدية من الأنشطة التشغيلية</td></tr>`);
+  rows.push(lineRow("صافي الدخل للسنة", netIncome));
+  operating.forEach((x) => rows.push(lineRow(x.label, x.amount)));
+  rows.push(lineRow("صافي النقد من الأنشطة التشغيلية", opTotal, "section-total"));
+  rows.push(`<tr class="section-head"><td class="col-caption" colspan="2">التدفقات النقدية من الأنشطة الاستثمارية</td></tr>`);
+  investing.forEach((x) => rows.push(lineRow(x.label, x.amount)));
+  rows.push(lineRow("صافي النقد من الأنشطة الاستثمارية", invTotal, "section-total"));
+  rows.push(`<tr class="section-head"><td class="col-caption" colspan="2">التدفقات النقدية من الأنشطة التمويلية</td></tr>`);
+  financing.forEach((x) => rows.push(lineRow(x.label, x.amount)));
+  rows.push(lineRow("صافي النقد من الأنشطة التمويلية", finTotal, "section-total"));
+  rows.push(`<tr class="spacer"><td colspan="2"></td></tr>`);
+  rows.push(lineRow("صافي التغير في النقد وما في حكمه", netChange, "subtotal"));
+  rows.push(lineRow("النقد وما في حكمه في بداية السنة", openingCash));
+  rows.push(lineRow("النقد وما في حكمه في نهاية السنة", openingCash + netChange, "grand-total"));
+
+  const reconciles = Math.abs(openingCash + netChange - closingCash) < 0.5;
+  const note = reconciles
+    ? `<span class="balance-ok">✔ النقد آخر السنة مطابق لقائمة المركز المالي (${money(closingCash)})</span>`
+    : `<span class="balance-fail">⚠ فرق في تسوية النقد: ${money(closingCash - (openingCash + netChange))}</span>`;
+
+  return `<div class="sheet">${header}
+    <table class="fs"><tbody>${rows.join("")}</tbody></table>
+    <div class="footnote">${note}</div>
   </div>`;
 }
 
@@ -380,7 +471,7 @@ function renderFullReport({ contract, model, position, income, opinionType = "UN
     positionBody(position),
     incomeBody(income),
     changesInEquityBody(contract, position, income, terms),
-    cashFlowsBody(contract, income),
+    cashFlowsBody(contract, position, income, terms),
     notesBody(contract, model, position, income, terms, fw)
   );
 }

@@ -138,6 +138,14 @@ async function loadModel(contractId) {
       currency: true,
       fiscalYearStart: true,
       fiscalYearEnd: true,
+      commercialRegisterNumber: true,
+      taxNumber: true,
+      unifiedNumber: true,
+      address: true,
+      email: true,
+      postalCode: true,
+      region: true,
+      contactPhone: true,
     },
   });
   if (!contract) {
@@ -159,7 +167,17 @@ async function loadModel(contractId) {
   const [tbAccounts, guides] = await Promise.all([
     prisma.trialBalanceAccount.findMany({
       where: { trialBalanceId: trialBalance.id, assignedAccountGuideId: { not: null } },
-      select: { id: true, accountCode: true, accountName: true, finalBalance: true, assignedAccountGuideId: true },
+      select: {
+        id: true,
+        accountCode: true,
+        accountName: true,
+        finalBalance: true,
+        assignedAccountGuideId: true,
+        beginningDebit: true,
+        beginningCredit: true,
+        debitMovement: true,
+        creditMovement: true,
+      },
     }),
     prisma.accountGuide.findMany({
       where: { subscriberId: contract.subscriberId },
@@ -186,7 +204,16 @@ function buildModel({ contract, trialBalanceStatus = null, tbAccounts = [], guid
     const bal = Number(a.finalBalance) || 0;
     node.own += bal;
     if (!detailByGuide.has(node.id)) detailByGuide.set(node.id, []);
-    detailByGuide.get(node.id).push({ accountCode: a.accountCode, accountName: a.accountName, amount: bal });
+    detailByGuide.get(node.id).push({
+      accountCode: a.accountCode,
+      accountName: a.accountName,
+      amount: bal,
+      // movement columns (for the Property/Plant & Equipment schedule — FRD Table H)
+      beginningDebit: Number(a.beginningDebit) || 0,
+      beginningCredit: Number(a.beginningCredit) || 0,
+      debitMovement: Number(a.debitMovement) || 0,
+      creditMovement: Number(a.creditMovement) || 0,
+    });
   }
 
   roots.forEach(rollUp);

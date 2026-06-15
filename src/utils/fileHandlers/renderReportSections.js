@@ -216,6 +216,8 @@ function entityInfoNoteBody(contract) {
       ${row("الرقم الضريبي", c.taxNumber)}
       ${row("الرقم الموحد", c.unifiedNumber)}
       ${row("العنوان", c.address)}
+      ${row("الرمز البريدي", c.postalCode)}
+      ${row("الجوال", c.contactPhone || c.whatsappPhone)}
       ${row("البريد الإلكتروني", c.email)}
     </table>
   </div>`;
@@ -228,7 +230,58 @@ function policiesNoteBody(framework) {
     ${p(`أساس الإعداد: أُعدّت هذه القوائم المالية وفقاً ${withLam(framework)}، وعلى أساس التكلفة التاريخية ومبدأ الاستحقاق وفرض الاستمرارية.`)}
     ${p(`العملة الوظيفية وعملة العرض: الريال السعودي هو العملة الوظيفية وعملة عرض القوائم المالية.`)}
     ${p(`الاعتراف بالإيرادات: يتم الاعتراف بالإيرادات عند تحويل السيطرة على السلع أو الخدمات إلى العملاء بالمبلغ الذي يعكس المقابل المتوقع استحقاقه.`)}
-    ${p(`الممتلكات والآلات والمعدات: تُقاس بالتكلفة التاريخية ناقصاً مجمع الإهلاك وأي خسائر انخفاض في القيمة.`)}
+    ${p(`النقد وما في حكمه: يشمل النقد بالصندوق والأرصدة لدى البنوك والاستثمارات قصيرة الأجل عالية السيولة، ويُقاس بالقيمة الاسمية.`)}
+    ${p(`الذمم المدينة التجارية: تُقاس بالتكلفة المطفأة بعد خصم مخصص الخسائر الائتمانية المتوقعة باستخدام المنهجية المبسطة.`)}
+    ${p(`المخزون: يُقاس بالتكلفة أو صافي القيمة القابلة للتحقق أيهما أقل.`)}
+    ${p(`الممتلكات والآلات والمعدات: تُقاس بالتكلفة التاريخية ناقصاً مجمع الإهلاك وأي خسائر انخفاض، ويُحتسب الإهلاك بطريقة القسط الثابت على مدى العمر الإنتاجي المقدر.`)}
+    ${p(`الأصول غير الملموسة: تُقاس بالتكلفة ناقصاً مجمع الإطفاء وأي خسائر انخفاض، وتُطفأ على مدى عمرها الإنتاجي المقدر.`)}
+    ${p(`التزامات منافع الموظفين المحددة: يتم قياسها وفق التقييم الاكتواري المعتمد (طريقة وحدة الائتمان المتوقعة).`)}
+    ${p(`مخصص الزكاة: يُحتسب وفقاً لأنظمة هيئة الزكاة والضريبة والجمارك في المملكة العربية السعودية.`)}
+  </div>`;
+}
+
+/** General notes 3–5: judgements & estimates, financial risk management, comparatives. */
+function generalNotesBody() {
+  const p = (t) => `<div class="para">${t}</div>`;
+  return `
+  <div class="note-block">
+    <div class="note-title">3. الأهمية النسبية والأحكام والتقديرات المحاسبية</div>
+    ${p(`يتطلب إعداد القوائم المالية استخدام الإدارة لأحكام وتقديرات تؤثر على مبالغ الأصول والالتزامات والإيرادات والمصروفات. وتستند هذه التقديرات إلى الخبرة السابقة والمعلومات المتاحة، وقد تختلف النتائج الفعلية عنها.`)}
+  </div>
+  <div class="note-block">
+    <div class="note-title">4. إدارة المخاطر المالية</div>
+    ${p(`تتعرض المنشأة لمخاطر مالية تشمل مخاطر السوق ومخاطر الائتمان ومخاطر السيولة، وتُدار هذه المخاطر من خلال سياسات وإجراءات معتمدة بهدف الحد من آثارها السلبية على المركز المالي ونتائج الأعمال.`)}
+  </div>
+  <div class="note-block">
+    <div class="note-title">5. أساس المقارنة وأرقام المقارنة</div>
+    ${p(`أُعيد تصنيف بعض أرقام المقارنة للسنة السابقة عند الضرورة لتتوافق مع عرض السنة الحالية، دون أثر على صافي حقوق الملكية أو نتائج الأعمال للسنة السابقة.`)}
+  </div>`;
+}
+
+const isPPELine = (name) => /(ممتلكات|آلات|آالت|معدات|عقارات|أصول ثابتة)/.test(String(name || ""));
+
+/** Property, Plant & Equipment movement schedule (FRD Table H — cost side). */
+function ppeMovementNote(line, detail) {
+  const th = (t) => `<th style="border-bottom:1px solid #111;padding:3px 6px;font-size:11px">${esc(t)}</th>`;
+  const head = `<tr>${th("البند")}${th("التكلفة أول المدة")}${th("إضافات")}${th("استبعادات")}${th("التكلفة آخر المدة")}${th("صافي القيمة الدفترية")}</tr>`;
+  let tBeg = 0, tAdd = 0, tDisp = 0, tEnd = 0, tNbv = 0;
+  const rows = detail
+    .map((d) => {
+      const beg = d.beginningDebit || 0;
+      const add = d.debitMovement || 0;
+      const disp = d.creditMovement || 0;
+      const end = beg + add - disp;
+      const nbv = Math.abs(d.amount || 0);
+      tBeg += beg; tAdd += add; tDisp += disp; tEnd += end; tNbv += nbv;
+      return `<tr><td class="col-caption">${esc(d.accountName)}</td><td class="amount">${money(beg)}</td><td class="amount">${money(add)}</td><td class="amount">${money(-disp)}</td><td class="amount">${money(end)}</td><td class="amount">${money(nbv)}</td></tr>`;
+    })
+    .join("");
+  return `<div class="note-block">
+    <div class="note-title">${line.note}. ${esc(line.name)}</div>
+    <table class="mini" style="width:100%"><thead>${head}</thead><tbody>${rows}
+      <tr class="tot"><td class="col-caption">المجموع</td><td class="amount">${money(tBeg)}</td><td class="amount">${money(tAdd)}</td><td class="amount">${money(-tDisp)}</td><td class="amount">${money(tEnd)}</td><td class="amount">${money(tNbv)}</td></tr>
+    </tbody></table>
+    <div class="footnote" style="text-align:right">يُستكمل مجمع الإهلاك ضمن الجدول عند تأكيد ربط حسابات التكلفة بحسابات مجمع الإهلاك المقابلة لها.</div>
   </div>`;
 }
 
@@ -240,6 +293,12 @@ function breakdownNotesBody(model, statement) {
         if (!line.note) continue;
         const detail = getLineDetail(model, line.accountNumber);
         if (!detail || detail.length === 0) continue;
+
+        if (isPPELine(line.name)) {
+          blocks.push(ppeMovementNote(line, detail));
+          continue;
+        }
+
         const rows = detail
           .map((d) => `<tr><td class="col-caption">${esc(d.accountName)}</td><td class="amount">${money(Math.abs(d.amount))}</td></tr>`)
           .join("");
@@ -260,6 +319,7 @@ function notesBody(contract, model, position, income, terms, framework) {
     <div class="doc-title">إيضاحات حول القوائم المالية — للسنة المالية المنتهية في ${fiscalDateLabel(contract)}</div>
     ${entityInfoNoteBody(contract)}
     ${policiesNoteBody(framework)}
+    ${generalNotesBody()}
     ${breakdownNotesBody(model, position)}
     ${breakdownNotesBody(model, income)}
   </div>`;

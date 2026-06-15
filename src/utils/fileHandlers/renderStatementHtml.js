@@ -210,7 +210,11 @@ function incomeBody(statement) {
   pushLines(sectionByKey.EXPENSE, { asDeduction: true });
 
   const t = statement.totals || {};
-  rows.push(`<tr class="grand-total"><td class="col-caption">${esc(t.netResultLabel || "صافي الدخل الشامل للسنة")}</td><td></td>${P.cells(t.netResult)}</tr>`);
+  const zeros = (t.netResult || [0]).map(() => 0);
+  // صافي الربح/الخسارة → الدخل الشامل الآخر (لا يوجد حالياً) → إجمالي الدخل الشامل
+  rows.push(`<tr class="section-total"><td class="col-caption">${esc(t.netResultLabel || "صافي ربح / (خسارة) السنة")}</td><td></td>${P.cells(t.netResult)}</tr>`);
+  rows.push(`<tr class="line"><td class="col-caption">الدخل الشامل الآخر للسنة</td><td></td>${P.cells(zeros)}</tr>`);
+  rows.push(`<tr class="grand-total"><td class="col-caption">إجمالي الدخل الشامل للسنة</td><td></td>${P.cells(t.netResult)}</tr>`);
 
   return `<div class="sheet">
     <div class="statement-header">

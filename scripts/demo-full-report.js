@@ -65,7 +65,7 @@ const tbAccounts = [
   { id: "t3", accountCode: "1113", accountName: "مصرف الراجحي", finalBalance: 150000, assignedAccountGuideId: 6 },
   { id: "t4", accountCode: "1121", accountName: "عملاء مقاولات", finalBalance: 250000, assignedAccountGuideId: 8 },
   { id: "t5", accountCode: "1131", accountName: "مخزون مواد بناء", finalBalance: 400000, assignedAccountGuideId: 10 },
-  { id: "t6", accountCode: "1211", accountName: "معدات وآليات", finalBalance: 780000, assignedAccountGuideId: 13 },
+  { id: "t6", accountCode: "1211", accountName: "معدات وآليات", finalBalance: 780000, assignedAccountGuideId: 13, beginningDebit: 900000, debitMovement: 100000, creditMovement: 220000 },
   { id: "t7", accountCode: "1221", accountName: "برامج", finalBalance: 70000, assignedAccountGuideId: 15 },
   // مطلوبات (دائن = سالب)
   { id: "t8", accountCode: "2111", accountName: "موردون", finalBalance: -300000, assignedAccountGuideId: 23 },

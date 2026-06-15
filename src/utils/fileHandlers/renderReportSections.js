@@ -155,26 +155,68 @@ function auditorReportBody(contract, { opinionType = "UNQUALIFIED", terms, frame
 // ---------------------------------------------------------------------------
 // Statement of Changes in Equity (basic — closing balances; movements need prior-year data)
 // ---------------------------------------------------------------------------
-function changesInEquityBody(contract, position, terms) {
+const isRetainedEarnings = (name) => /(أرباح|مبقاة|محتجزة|خسائر متراكمة)/.test(String(name || ""));
+
+function changesInEquityBody(contract, position, income, terms) {
   const equity = (position.sections || []).find((s) => s.key === "EQUITY");
-  const lines = (equity ? equity.groups.flatMap((g) => g.lines) : []);
-  const cur = (a) => (Array.isArray(a) ? a[0] : a) || 0; // current-period value
-  const rows = lines
-    .map((l) => `<tr class="line"><td class="col-caption">${esc(l.name)}</td><td class="amount">${money(cur(l.amounts))}</td></tr>`)
-    .join("");
-  const total = equity ? cur(equity.totals) : 0;
-  return `<div class="sheet">
-    <div class="statement-header">
+  const lines = equity ? equity.groups.flatMap((g) => g.lines) : [];
+  const np = (position.periods || []).length;
+  const cur = (a) => (Array.isArray(a) ? a[0] : a) || 0;
+  const prior = (a) => (Array.isArray(a) ? a[1] : 0) || 0;
+
+  const header = `<div class="statement-header">
       <div class="company">${esc(contract.customerName || "")}</div>
       <div class="entity">${entityLine(contract)}</div>
       <div class="title">${esc(terms.equityTitle)}</div>
       <div class="date">للسنة المالية المنتهية في ${fiscalDateLabel(contract)}</div>
-    </div>
+    </div>`;
+
+  // Single period → closing balances only (movement needs comparative data).
+  if (np < 2 || lines.length === 0) {
+    const rows = lines
+      .map((l) => `<tr class="line"><td class="col-caption">${esc(l.name)}</td><td class="amount">${money(cur(l.amounts))}</td></tr>`)
+      .join("");
+    const total = equity ? cur(equity.totals) : 0;
+    return `<div class="sheet">${header}
+      <table class="fs">
+        <thead><tr><th class="caption col-caption">البيان</th><th class="col-amount">الرصيد كما في ${esc(fiscalDateLabel(contract))}</th></tr></thead>
+        <tbody>${rows}<tr class="grand-total"><td class="col-caption">مجموع ${esc(terms.equityWord)}</td><td class="amount">${money(total)}</td></tr></tbody>
+      </table>
+      <div class="footnote">ملاحظة: تُعرض الأرصدة الختامية فقط؛ يُستكمل تحليل الحركة عند توفّر أرصدة السنة السابقة.</div>
+    </div>`;
+  }
+
+  // Two periods → full movement: opening + net income − distributions (+ other) = closing.
+  const netIncome = income && income.totals ? cur(income.totals.netResult) : 0;
+  const comps = lines.map((l) => {
+    const opening = prior(l.amounts);
+    const closing = cur(l.amounts);
+    const re = isRetainedEarnings(l.name);
+    const inc = re ? netIncome : 0;
+    const dist = re ? opening + inc - closing : 0; // balancing distributions/withdrawals
+    const other = re ? 0 : closing - opening; // capital/reserve movements
+    return { name: l.name, opening, inc, dist, other, closing };
+  });
+
+  const sum = (k) => comps.reduce((s, c) => s + c[k], 0);
+  const headCells = comps.map((c) => `<th class="col-amount">${esc(c.name)}</th>`).join("") + `<th class="col-amount">المجموع</th>`;
+  const rowCells = (vals, total) => comps.map((_, i) => `<td class="amount">${money(vals[i])}</td>`).join("") + `<td class="amount">${money(total)}</td>`;
+
+  const rows = [];
+  rows.push(`<tr class="line"><td class="col-caption">الرصيد في بداية السنة</td>${rowCells(comps.map((c) => c.opening), sum("opening"))}</tr>`);
+  rows.push(`<tr class="line"><td class="col-caption">صافي دخل السنة</td>${rowCells(comps.map((c) => c.inc), sum("inc"))}</tr>`);
+  if (comps.some((c) => Math.abs(c.dist) > 0.005))
+    rows.push(`<tr class="line"><td class="col-caption">توزيعات / مسحوبات</td>${rowCells(comps.map((c) => -c.dist), -sum("dist"))}</tr>`);
+  if (comps.some((c) => Math.abs(c.other) > 0.005))
+    rows.push(`<tr class="line"><td class="col-caption">تغيرات أخرى</td>${rowCells(comps.map((c) => c.other), sum("other"))}</tr>`);
+  rows.push(`<tr class="grand-total"><td class="col-caption">الرصيد في نهاية السنة</td>${rowCells(comps.map((c) => c.closing), sum("closing"))}</tr>`);
+
+  return `<div class="sheet">${header}
     <table class="fs">
-      <thead><tr><th class="caption col-caption">البيان</th><th class="col-amount">الرصيد كما في ${esc(fiscalDateLabel(contract))}</th></tr></thead>
-      <tbody>${rows}<tr class="grand-total"><td class="col-caption">مجموع ${esc(terms.equityWord)}</td><td class="amount">${money(total)}</td></tr></tbody>
+      <thead><tr><th class="caption col-caption">البيان</th>${headCells}</tr></thead>
+      <tbody>${rows.join("")}</tbody>
     </table>
-    <div class="footnote">ملاحظة: تُعرض هنا الأرصدة الختامية لمكونات ${esc(terms.equityWord)}؛ ويُستكمل تحليل الحركة (الرصيد الافتتاحي، صافي الدخل، التوزيعات) عند توفر أرصدة السنة المقارنة.</div>
+    <div class="footnote">الإيضاحات المرفقة تعتبر جزءاً لا يتجزأ من القوائم المالية</div>
   </div>`;
 }
 
@@ -337,7 +379,7 @@ function renderFullReport({ contract, model, position, income, opinionType = "UN
     auditorReportBody(contract, { opinionType, terms, framework: fw, auditor }),
     positionBody(position),
     incomeBody(income),
-    changesInEquityBody(contract, position, terms),
+    changesInEquityBody(contract, position, income, terms),
     cashFlowsBody(contract, income),
     notesBody(contract, model, position, income, terms, fw)
   );

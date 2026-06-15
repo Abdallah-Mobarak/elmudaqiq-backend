@@ -1,6 +1,7 @@
 const financialStatements = require("../services/financialStatements.service");
 const { renderPositionStatement, renderIncomeStatement } = require("../utils/fileHandlers/renderStatementHtml");
 const { renderFullReport } = require("../utils/fileHandlers/renderReportSections");
+const { determineOpinion } = require("../services/auditOpinion.service");
 const exportPdfFromHtml = require("../utils/fileHandlers/exportPdfFromHtml");
 
 /**
@@ -84,7 +85,20 @@ exports.getStatementOfIncomePdf = async (req, res, next) => {
 exports.getFullReportPdf = async (req, res, next) => {
   try {
     const { contractId } = req.params;
-    const opinionType = (req.query.opinion || "UNQUALIFIED").toUpperCase();
+
+    // Opinion: explicit override (?opinion=) wins; otherwise auto-determine from
+    // findings (?findings=<json array>); otherwise default to unqualified.
+    // The findings will be sourced from the working papers once that module persists them.
+    let opinionType = (req.query.opinion || "").toUpperCase();
+    if (!opinionType && req.query.findings) {
+      try {
+        opinionType = determineOpinion(JSON.parse(req.query.findings)).opinion;
+      } catch (_) {
+        /* ignore malformed findings */
+      }
+    }
+    opinionType = opinionType || "UNQUALIFIED";
+
     const { contract, model, position, income } = await financialStatements.generateFullReport(contractId);
     const html = renderFullReport({ contract, model, position, income, opinionType });
     const { buffer } = await exportPdfFromHtml({ html, filePrefix: `full_report_${contractId}` });

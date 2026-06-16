@@ -11,11 +11,11 @@
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:4000", "type": "string" },
-    { "key": "tenant", "value": "YOUR_SUBSCRIBER_SUBDOMAIN", "type": "string" },
-    { "key": "email", "value": "user@example.com", "type": "string" },
+    { "key": "tenant", "value": "4444", "type": "string" },
+    { "key": "email", "value": "sarah@gmail.com", "type": "string" },
     { "key": "password", "value": "YOUR_PASSWORD", "type": "string" },
     { "key": "token", "value": "", "type": "string" },
-    { "key": "contractId", "value": "YOUR_CONTRACT_ID", "type": "string" }
+    { "key": "contractId", "value": "dae46abe-3c09-4640-9a6e-80ba7b453663", "type": "string" }
   ],
   "item": [
     {
@@ -116,6 +116,23 @@
           "path": ["financial-statements", "{{contractId}}", "income", "pdf"]
         },
         "description": "Statement of Comprehensive Income as PDF. Use 'Send and Download' to save the file."
+      }
+    },
+    {
+      "name": "6. Full Report (PDF) - cover + index + auditor report + statements + notes",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/financial-statements/{{contractId}}/full/pdf",
+          "host": ["{{baseUrl}}"],
+          "path": ["financial-statements", "{{contractId}}", "full", "pdf"],
+          "query": [
+            { "key": "opinion", "value": "UNQUALIFIED", "disabled": true, "description": "Override: UNQUALIFIED | QUALIFIED | ADVERSE | DISCLAIMER" },
+            { "key": "findings", "value": "[{\"problemType\":\"MISSTATEMENT\",\"material\":true,\"pervasive\":false}]", "disabled": true, "description": "Auto-determine opinion from findings (JSON array)" }
+          ]
+        },
+        "description": "The full financial statements report as one PDF. Use 'Send and Download'. Optional query params (enable in the Params tab): ?opinion= to force an opinion type, or ?findings= to auto-determine it."
       }
     }
   ]

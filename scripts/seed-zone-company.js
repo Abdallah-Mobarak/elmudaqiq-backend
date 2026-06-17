@@ -157,13 +157,39 @@ const EXTRAS = {
   },
 };
 
-(async () => {
+// Deep-scale numeric values by a factor (keeps the trial balance balanced and
+// the extras consistent, since everything scales linearly).
+function scaleVal(v, k) { return typeof v === "number" ? Math.round(v * k) : v; }
+function scaleExtras(obj, k) {
+  if (Array.isArray(obj)) return obj.map((x) => scaleExtras(x, k));
+  if (obj && typeof obj === "object") {
+    const out = {};
+    for (const [key, val] of Object.entries(obj)) {
+      // keep rates/percent/labels/flags as-is
+      if (["rate", "framework", "transition", "name", "pct", "discountRate", "salaryGrowth", "turnover", "retirementAge", "employees", "shareValue"].includes(key)) out[key] = val;
+      else out[key] = typeof val === "number" ? scaleVal(val, k) : scaleExtras(val, k);
+    }
+    return out;
+  }
+  return obj;
+}
+
+const PROFILES = {
+  "dae46abe-3c09-4640-9a6e-80ba7b453663": { name: "شركة المثال الطبية", legalEntity: "شركة ذات مسؤولية محدودة", nationality: "سعودية", scale: 1, framework: "IFRS", transition: false, cr: "1010688081", tax: "310868951000003", unified: "7021554345" },
+  "59625976-ca29-4110-b633-e7202e131801": { name: "مؤسسة فاليو التجارية", legalEntity: "مؤسسة فردية", nationality: "سعودية", scale: 0.5, framework: "SME", transition: false, cr: "1010555221", tax: "300055522100003", unified: "7005552210" },
+  "5fc3e650-f110-438e-85c0-cfcadeff54fa": { name: "شركة الحمد الصناعية", legalEntity: "شركة مساهمة مغلقة", nationality: "سعودية", scale: 2, framework: "IFRS", transition: false, cr: "1010777443", tax: "300077744300003", unified: "7007774430" },
+};
+
+async function seedCompany(contractId) {
+  const profile = PROFILES[contractId] || PROFILES["dae46abe-3c09-4640-9a6e-80ba7b453663"];
+  const k = profile.scale;
   const contract = await prisma.engagementContract.findUnique({
-    where: { id: CONTRACT_ID },
+    where: { id: contractId },
     select: { id: true, subscriberId: true },
   });
-  if (!contract) throw new Error("Contract not found: " + CONTRACT_ID);
+  if (!contract) throw new Error("Contract not found: " + contractId);
   const subscriberId = contract.subscriberId;
+  const CONTRACT_ID = contractId;
 
   // 1) chart
   const existing = await prisma.accountGuide.findMany({
@@ -180,14 +206,14 @@ const EXTRAS = {
   await prisma.engagementContract.update({
     where: { id: CONTRACT_ID },
     data: {
-      customerName: "شركة المثال الطبية",
-      legalEntity: "شركة ذات مسؤولية محدودة",
-      nationality: "سعودية",
+      customerName: profile.name,
+      legalEntity: profile.legalEntity,
+      nationality: profile.nationality,
       fiscalYearStart: new Date("2024-01-01"),
       fiscalYearEnd: new Date("2024-12-31"),
-      commercialRegisterNumber: "1010688081",
-      taxNumber: "310868951000003",
-      unifiedNumber: "7021554345",
+      commercialRegisterNumber: profile.cr,
+      taxNumber: profile.tax,
+      unifiedNumber: profile.unified,
       address: "الرياض - حي الياسمين",
       email: "info@example-medical.sa",
       postalCode: "13326",
@@ -206,24 +232,31 @@ const EXTRAS = {
       const mv = (idx === 0 ? mv24 : mv23) || {};
       return {
         trialBalanceId: tb.id, accountCode, accountName,
-        finalBalance: idx === 0 ? fb24 : fb23,
+        finalBalance: scaleVal(idx === 0 ? fb24 : fb23, k),
         assignedAccountGuideId: guideByNum.get(num) || null,
-        beginningDebit: mv.beginningDebit || 0, beginningCredit: mv.beginningCredit || 0,
-        debitMovement: mv.debitMovement || 0, creditMovement: mv.creditMovement || 0,
+        beginningDebit: scaleVal(mv.beginningDebit || 0, k), beginningCredit: scaleVal(mv.beginningCredit || 0, k),
+        debitMovement: scaleVal(mv.debitMovement || 0, k), creditMovement: scaleVal(mv.creditMovement || 0, k),
       };
     });
     await prisma.trialBalanceAccount.createMany({ data: rows });
   }
 
-  // 4) extras + auditor signature data on subscriber
-  await setExtras(CONTRACT_ID, EXTRAS);
+  // 4) extras (scaled + framework/transition from profile) + auditor signature
+  const extras = scaleExtras(EXTRAS, k);
+  extras.framework = profile.framework;
+  extras.transition = profile.transition;
+  await setExtras(CONTRACT_ID, extras);
   await prisma.subscriber.update({ where: { id: subscriberId }, data: { licenseName: "محمد سعيد بن حسن", licenseNumber: "594", licenseType: "محاسبون ومراجعون قانونيون" } }).catch(() => {});
 
-  // balance check
-  const assets = TB.filter((r) => r[0][0] === "1").reduce((s, r) => s + r[2], 0);
-  const liabEq = TB.filter((r) => r[0][0] === "2" || r[0][0] === "3").reduce((s, r) => s + r[2], 0);
-  console.log(`✅ شركة المثال الطبية مزروعة على ${CONTRACT_ID}`);
-  console.log(`   الموجودات 2024 = ${assets} | المطلوبات+حقوق = ${-liabEq} | متوازن؟ ${Math.abs(assets + liabEq) < 1}`);
+  const assets = TB.filter((r) => r[0][0] === "1").reduce((s, r) => s + scaleVal(r[2], k), 0);
+  const liabEq = TB.filter((r) => r[0][0] === "2" || r[0][0] === "3").reduce((s, r) => s + scaleVal(r[2], k), 0);
+  console.log(`✅ ${profile.name} (${profile.legalEntity}) على ${CONTRACT_ID} — موجودات ${assets} | متوازن؟ ${Math.abs(assets + liabEq) < 2}`);
+}
+
+(async () => {
+  const target = process.argv[2];
+  const ids = target ? [target] : Object.keys(PROFILES);
+  for (const id of ids) await seedCompany(id);
   await prisma.$disconnect();
 })().catch(async (e) => {
   console.error("ERR:", e.message);

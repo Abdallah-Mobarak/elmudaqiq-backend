@@ -524,4 +524,6 @@ module.exports = {
   generateFullReport,
   _loadModel: loadModel, // exported for future statements/notes
   _loadModels: loadModels,
+  loadAuditor,
+  defaultPeriodLabel,
 };

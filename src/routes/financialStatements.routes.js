@@ -19,6 +19,9 @@ router.get("/:contractId/income/pdf", controller.getStatementOfIncomePdf);
 // 5. التقرير الكامل (غلاف + فهرس + تقرير + قوائم + إيضاحات) — PDF
 router.get("/:contractId/full/pdf", controller.getFullReportPdf);
 
+// 5ب. التقرير الكامل بتنسيق «زون» (قالب ثابت + كل الإيضاحات وجداول الحركة) — PDF
+router.get("/:contractId/full/zone/pdf", controller.getZoneReportPdf);
+
 // 6. ملاحظات أوراق العمل (Findings) — تغذّي محرك الرأي (2.3.3 / 2.3.9)
 router.get("/:contractId/findings", controller.listFindings);
 router.post("/:contractId/findings", controller.createFinding);

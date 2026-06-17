@@ -521,4 +521,4 @@ function renderFullReport({ contract, model, position, income, opinionType = "UN
   );
 }
 
-module.exports = { renderFullReport, entityTerms };
+module.exports = { renderFullReport, entityTerms, coverBody, indexBody, auditorReportBody, changesInEquityBody, cashFlowsBody };

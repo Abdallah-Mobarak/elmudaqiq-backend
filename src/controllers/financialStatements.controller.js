@@ -4,6 +4,7 @@ const { renderFullReport } = require("../utils/fileHandlers/renderReportSections
 const { determineOpinion } = require("../services/auditOpinion.service");
 const auditFindings = require("../services/auditFindings.service");
 const notify = require("../services/financialStatementsNotifications.service");
+const { generateZoneReportHtml } = require("../services/fs/zoneReport");
 const exportPdfFromHtml = require("../utils/fileHandlers/exportPdfFromHtml");
 
 /**
@@ -130,6 +131,39 @@ exports.getFullReportPdf = async (req, res, next) => {
   } catch (error) {
     if (error.status) return res.status(error.status).json({ message: error.message });
     console.error("Full Report PDF Error:", error);
+    next(error);
+  }
+};
+
+/**
+ * التقرير الكامل بتنسيق «زون» (قالب ثابت + أرقام النظام) — PDF
+ * GET /financial-statements/:contractId/full/zone/pdf
+ */
+exports.getZoneReportPdf = async (req, res, next) => {
+  try {
+    const { contractId } = req.params;
+    let opinionType = (req.query.opinion || "").toUpperCase();
+    if (!opinionType) opinionType = await auditFindings.resolveOpinionType(contractId);
+    opinionType = opinionType || "UNQUALIFIED";
+
+    const emphasis = req.query.eomText ? { note: req.query.eomNote, text: req.query.eomText } : null;
+    const html = await generateZoneReportHtml(contractId, { opinionType, framework: req.query.framework, emphasis });
+    const { buffer } = await exportPdfFromHtml({ html, filePrefix: `zone_report_${contractId}` });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="financial_statements_zone.pdf"`);
+    res.status(200).send(buffer);
+
+    const contract = await require("../config/prisma").engagementContract
+      .findUnique({ where: { id: contractId }, select: { id: true, subscriberId: true, customerName: true } })
+      .catch(() => null);
+    if (contract) {
+      notify.onStatementsGenerated(contract, req.user).catch(() => {});
+      notify.onReportIssued(contract, req.user).catch(() => {});
+    }
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    console.error("Zone Report PDF Error:", error);
     next(error);
   }
 };

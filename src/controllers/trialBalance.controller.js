@@ -3,7 +3,8 @@ const exportExcel = require("../utils/fileHandlers/exportExcel");
 const exportPdf = require("../utils/fileHandlers/exportPdf");
 const { calculateBalances } = require("../utils/calculations/trialBalanceCalc");
 // استخدم الـ Prisma Client الموحد في مشروعك
-const prisma = require("../config/prisma"); 
+const prisma = require("../config/prisma");
+const fsNotify = require("../services/financialStatementsNotifications.service");
 
 exports.uploadTrialBalance = async (req, res, next) => {
   try {
@@ -81,10 +82,18 @@ exports.uploadTrialBalance = async (req, res, next) => {
       await prisma.trialBalanceAccount.createMany({ data: accountsData });
     }
 
+    // 5. التحقق من توازن الميزان (مدين = دائن). صافي الأرصدة يجب أن يقترب من الصفر.
+    const netBalance = accountsData.reduce((s, a) => s + (Number(a.finalBalance) || 0), 0);
+    const isOutOfBalance = Math.abs(netBalance) > 0.5;
+    if (isOutOfBalance) {
+      fsNotify.onTrialBalanceOutOfBalance(req.user, Math.round(netBalance)).catch(() => {});
+    }
+
     return res.status(200).json({
       message: "تم رفع ميزان المراجعة ومعالجته بنجاح",
       importedAccountsCount: accountsData.length,
-      trialBalanceId: trialBalance.id
+      trialBalanceId: trialBalance.id,
+      balanced: !isOutOfBalance,
     });
 
   } catch (error) {
@@ -111,6 +120,14 @@ exports.confirmTrialBalance = async (req, res, next) => {
 
     if (trialBalance.status === 'CONFIRMED') {
       return res.status(400).json({ message: "ميزان المراجعة معتمد ومقفل بالفعل." });
+    }
+
+    // Notify the preparer if any accounts are still unmapped before posting (FRD 2.3.14).
+    const unmappedCount = await prisma.trialBalanceAccount.count({
+      where: { trialBalanceId: trialBalance.id, assignedAccountGuideId: null },
+    });
+    if (unmappedCount > 0) {
+      fsNotify.onUnmappedAccounts(req.user, unmappedCount).catch(() => {});
     }
 
     const updated = await prisma.trialBalance.update({

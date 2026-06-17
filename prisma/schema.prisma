@@ -790,6 +790,8 @@ model EngagementContract {
   reviewGuides  ContractReviewGuide[]
   documents     ContractDocument[]
   trialBalances TrialBalance[]
+  auditFindings AuditFinding[]
+  opinionDecision OpinionDecision?
 
 
   createdAt DateTime @default(now())
@@ -924,4 +926,43 @@ model TrialBalanceAccount {
 
   @@unique([trialBalanceId, accountCode])
   @@index([assignedAccountGuideId])
-}   
+}
+
+// Audit findings recorded in the working papers; they feed the opinion engine
+// (FRD 2.3.3 / 2.3.9). problemType: MISSTATEMENT | SCOPE.
+model AuditFinding {
+  id              String   @id @default(uuid())
+  contractId      String
+  contract        EngagementContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  analyticalGroup String   // the Level-3 group / working paper the finding relates to
+  problemType     String   // MISSTATEMENT | SCOPE
+  material        Boolean  @default(false)
+  pervasive       Boolean  @default(false)
+  description     String?  @db.Text
+  createdById     Int?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([contractId])
+}
+
+// The proposed + auditor-confirmed audit opinion for an engagement (FRD 2.3.9 / BR-7).
+// status: PROPOSED | CONFIRMED. An override stores finalType + reason + who.
+model OpinionDecision {
+  id            String   @id @default(uuid())
+  contractId    String   @unique
+  contract      EngagementContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  proposedType  String   // from determineOpinion()
+  finalType     String   // confirmed/overridden type
+  status        String   @default("PROPOSED")
+  overridden    Boolean  @default(false)
+  reason        String?  @db.Text
+  confirmedById Int?
+  confirmedAt   DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

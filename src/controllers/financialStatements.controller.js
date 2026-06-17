@@ -2,6 +2,8 @@ const financialStatements = require("../services/financialStatements.service");
 const { renderPositionStatement, renderIncomeStatement } = require("../utils/fileHandlers/renderStatementHtml");
 const { renderFullReport } = require("../utils/fileHandlers/renderReportSections");
 const { determineOpinion } = require("../services/auditOpinion.service");
+const auditFindings = require("../services/auditFindings.service");
+const notify = require("../services/financialStatementsNotifications.service");
 const exportPdfFromHtml = require("../utils/fileHandlers/exportPdfFromHtml");
 
 /**
@@ -86,10 +88,15 @@ exports.getFullReportPdf = async (req, res, next) => {
   try {
     const { contractId } = req.params;
 
-    // Opinion: explicit override (?opinion=) wins; otherwise auto-determine from
-    // findings (?findings=<json array>); otherwise default to unqualified.
-    // The findings will be sourced from the working papers once that module persists them.
+    // Opinion sourcing order (FRD 2.3.9):
+    //   1) explicit ?opinion= override (for previews/testing)
+    //   2) the stored working-paper decision / findings (confirmed or proposed)
+    //   3) ad-hoc ?findings=<json array>
+    //   4) default UNQUALIFIED
     let opinionType = (req.query.opinion || "").toUpperCase();
+    if (!opinionType) {
+      opinionType = await auditFindings.resolveOpinionType(contractId);
+    }
     if (!opinionType && req.query.findings) {
       try {
         opinionType = determineOpinion(JSON.parse(req.query.findings)).opinion;
@@ -116,9 +123,65 @@ exports.getFullReportPdf = async (req, res, next) => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="financial_statements_report.pdf"`);
     res.status(200).send(buffer);
+
+    // Fire-and-forget notifications (FRD 2.3.14): statements generated + report issued.
+    notify.onStatementsGenerated(contract, req.user).catch(() => {});
+    notify.onReportIssued(contract, req.user).catch(() => {});
   } catch (error) {
     if (error.status) return res.status(error.status).json({ message: error.message });
     console.error("Full Report PDF Error:", error);
+    next(error);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Working-paper audit findings + opinion (FRD 2.3.3 / 2.3.9)
+// ---------------------------------------------------------------------------
+exports.listFindings = async (req, res, next) => {
+  try {
+    res.status(200).json(await auditFindings.listFindings(req.params.contractId));
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    next(error);
+  }
+};
+
+exports.createFinding = async (req, res, next) => {
+  try {
+    const finding = await auditFindings.createFinding(req.params.contractId, req.body, req.user && req.user.id);
+    // Opinion-determined notification (FRD 2.3.14).
+    notify.onOpinionDetermined(req.params.contractId, req.user).catch(() => {});
+    res.status(201).json(finding);
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    next(error);
+  }
+};
+
+exports.deleteFinding = async (req, res, next) => {
+  try {
+    res.status(200).json(await auditFindings.deleteFinding(req.params.contractId, req.params.id));
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    next(error);
+  }
+};
+
+exports.getOpinion = async (req, res, next) => {
+  try {
+    res.status(200).json(await auditFindings.getOpinion(req.params.contractId));
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    next(error);
+  }
+};
+
+exports.confirmOpinion = async (req, res, next) => {
+  try {
+    const decision = await auditFindings.confirmOpinion(req.params.contractId, req.body, req.user && req.user.id);
+    res.status(200).json(decision);
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
     next(error);
   }
 };

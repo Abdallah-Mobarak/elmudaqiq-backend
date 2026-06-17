@@ -129,10 +129,87 @@
           "path": ["financial-statements", "{{contractId}}", "full", "pdf"],
           "query": [
             { "key": "opinion", "value": "UNQUALIFIED", "disabled": true, "description": "Override: UNQUALIFIED | QUALIFIED | ADVERSE | DISCLAIMER" },
-            { "key": "findings", "value": "[{\"problemType\":\"MISSTATEMENT\",\"material\":true,\"pervasive\":false}]", "disabled": true, "description": "Auto-determine opinion from findings (JSON array)" }
+            { "key": "findings", "value": "[{\"problemType\":\"MISSTATEMENT\",\"material\":true,\"pervasive\":false}]", "disabled": true, "description": "Ad-hoc opinion from findings (JSON array)" },
+            { "key": "framework", "value": "SME", "disabled": true, "description": "Reporting framework: SME for IFRS-for-SMEs (default = full IFRS)" },
+            { "key": "eomNote", "value": "12", "disabled": true, "description": "Emphasis of Matter: referenced note number" },
+            { "key": "eomText", "value": "تم تحويل المؤسسة إلى شركة وتغيير اسمها", "disabled": true, "description": "Emphasis of Matter: matter text (enables the paragraph)" }
           ]
         },
-        "description": "The full financial statements report as one PDF. Use 'Send and Download'. Optional query params (enable in the Params tab): ?opinion= to force an opinion type, or ?findings= to auto-determine it."
+        "description": "The full financial statements report as one PDF. Use 'Send and Download'. Opinion is sourced from the working-paper findings/decision; optional params: ?opinion= to force, ?findings= ad-hoc, ?framework=SME, ?eomNote=&eomText= for Emphasis of Matter."
+      }
+    },
+    {
+      "name": "7. Findings - list (working papers)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/financial-statements/{{contractId}}/findings",
+          "host": ["{{baseUrl}}"],
+          "path": ["financial-statements", "{{contractId}}", "findings"]
+        },
+        "description": "List the audit findings recorded for this engagement (feed the opinion engine)."
+      }
+    },
+    {
+      "name": "8. Findings - create",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"analyticalGroup\": \"ذمم مدينة تجارية\",\n  \"problemType\": \"MISSTATEMENT\",\n  \"material\": true,\n  \"pervasive\": false,\n  \"description\": \"عدم تكوين مخصص ديون مشكوك في تحصيلها بمبلغ 500 ألف\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/financial-statements/{{contractId}}/findings",
+          "host": ["{{baseUrl}}"],
+          "path": ["financial-statements", "{{contractId}}", "findings"]
+        },
+        "description": "Record a finding. problemType = MISSTATEMENT | SCOPE. material/pervasive are booleans. Recomputes the proposed opinion (Table D)."
+      }
+    },
+    {
+      "name": "9. Findings - delete",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/financial-statements/{{contractId}}/findings/:id",
+          "host": ["{{baseUrl}}"],
+          "path": ["financial-statements", "{{contractId}}", "findings", ":id"],
+          "variable": [{ "key": "id", "value": "FINDING_ID" }]
+        },
+        "description": "Delete a finding by id (from request 7). Recomputes the proposed opinion."
+      }
+    },
+    {
+      "name": "10. Opinion - proposed + decision",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/financial-statements/{{contractId}}/opinion",
+          "host": ["{{baseUrl}}"],
+          "path": ["financial-statements", "{{contractId}}", "opinion"]
+        },
+        "description": "Get the proposed opinion (computed from findings via Table D), the stored decision, and the effective type."
+      }
+    },
+    {
+      "name": "11. Opinion - confirm / override",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"finalType\": \"QUALIFIED\",\n  \"reason\": \"سبب التجاوز إن وجد (مطلوب فقط عند مخالفة الرأي المقترح)\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/financial-statements/{{contractId}}/opinion/confirm",
+          "host": ["{{baseUrl}}"],
+          "path": ["financial-statements", "{{contractId}}", "opinion", "confirm"]
+        },
+        "description": "Confirm the proposed opinion (omit finalType) or override it (finalType + reason). The override is logged (BR-7). The confirmed type then drives the full report."
       }
     }
   ]

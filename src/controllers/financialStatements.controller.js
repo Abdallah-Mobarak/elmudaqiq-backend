@@ -99,8 +99,18 @@ exports.getFullReportPdf = async (req, res, next) => {
     }
     opinionType = opinionType || "UNQUALIFIED";
 
-    const { contract, model, position, income } = await financialStatements.generateFullReport(contractId);
-    const html = renderFullReport({ contract, model, position, income, opinionType });
+    // Reporting framework (FRD 2.3.4): full IFRS by default; ?framework=SME for SMEs.
+    const FRAMEWORKS = {
+      IFRS: "المعايير الدولية للتقارير المالية المعتمدة في المملكة العربية السعودية",
+      SME: "المعيار الدولي للتقارير المالية للمنشآت الصغيرة والمتوسطة المعتمد في المملكة العربية السعودية",
+    };
+    const framework = FRAMEWORKS[(req.query.framework || "").toUpperCase()] || undefined;
+
+    // Optional Emphasis of Matter (FRD 2.3.10): ?eomNote=<n>&eomText=<...>
+    const emphasis = req.query.eomText ? { note: req.query.eomNote, text: req.query.eomText } : null;
+
+    const { contract, model, position, income, auditor } = await financialStatements.generateFullReport(contractId);
+    const html = renderFullReport({ contract, model, position, income, opinionType, auditor, framework, emphasis });
     const { buffer } = await exportPdfFromHtml({ html, filePrefix: `full_report_${contractId}` });
 
     res.setHeader("Content-Type", "application/pdf");

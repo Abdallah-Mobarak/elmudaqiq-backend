@@ -37,6 +37,25 @@ function fiscalDateLabel(contract) {
   return `${d.getDate()} ${AR_MONTHS[d.getMonth()]} ${d.getFullYear()} م`;
 }
 
+function dmyLabel(d) {
+  return `${d.getDate()} ${AR_MONTHS[d.getMonth()]} ${d.getFullYear()} م`;
+}
+
+/**
+ * Fiscal-period text (FRD 2.3.7 / BR-5): a full 12-month period reads
+ * "للسنة المالية المنتهية في …"; any other length reads "للفترة المالية من … إلى …".
+ */
+function fiscalPeriodText(contract) {
+  const end = contract?.fiscalYearEnd ? new Date(contract.fiscalYearEnd) : null;
+  const start = contract?.fiscalYearStart ? new Date(contract.fiscalYearStart) : null;
+  if (end && start && !isNaN(end) && !isNaN(start)) {
+    const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    const isFullYear = months === 11 || months === 12; // e.g. 1 Jan → 31 Dec = 11
+    if (!isFullYear) return `للفترة المالية من ${dmyLabel(start)} إلى ${dmyLabel(end)}`;
+  }
+  return `للسنة المالية المنتهية في ${fiscalDateLabel(contract)}`;
+}
+
 /** Shared HTML head: Arabic font + formal statement CSS (multi-page aware). */
 function htmlHead() {
   return `<!doctype html>
@@ -244,6 +263,7 @@ module.exports = {
   esc,
   entityLine,
   fiscalDateLabel,
+  fiscalPeriodText,
   AR_MONTHS,
   htmlHead,
   htmlDoc,

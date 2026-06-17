@@ -16,7 +16,7 @@ exports.uploadTrialBalance = async (req, res, next) => {
     }
 
     // 1. جلب ميزان المراجعة إن وجد
-    let trialBalance = await prisma.trialBalance.findUnique({ where: { contractId } });
+    let trialBalance = await prisma.trialBalance.findFirst({ where: { contractId }, orderBy: { period: "desc" } });
 
     if (trialBalance) {
       if (trialBalance.status === "CONFIRMED") {
@@ -100,8 +100,9 @@ exports.confirmTrialBalance = async (req, res, next) => {
   try {
     const { contractId } = req.params;
 
-    const trialBalance = await prisma.trialBalance.findUnique({
+    const trialBalance = await prisma.trialBalance.findFirst({
       where: { contractId },
+      orderBy: { period: "desc" },
     });
 
     if (!trialBalance) {
@@ -134,8 +135,9 @@ exports.exportTrialBalanceExcel = async (req, res, next) => {
   try {
     const { contractId } = req.params;
 
-    const trialBalance = await prisma.trialBalance.findUnique({
+    const trialBalance = await prisma.trialBalance.findFirst({
       where: { contractId },
+      orderBy: { period: "desc" },
       include: {
         accounts: { orderBy: { accountCode: 'asc' } }
       }
@@ -186,8 +188,9 @@ exports.exportTrialBalancePdf = async (req, res, next) => {
   try {
     const { contractId } = req.params;
 
-    const trialBalance = await prisma.trialBalance.findUnique({
+    const trialBalance = await prisma.trialBalance.findFirst({
       where: { contractId },
+      orderBy: { period: "desc" },
       include: {
         accounts: { orderBy: { accountCode: 'asc' } }
       }
@@ -243,8 +246,9 @@ exports.getTrialBalance = async (req, res, next) => {
     const { contractId } = req.params;
     const { page = 1, limit = 25, search } = req.query;
 
-    const trialBalance = await prisma.trialBalance.findUnique({
+    const trialBalance = await prisma.trialBalance.findFirst({
       where: { contractId },
+      orderBy: { period: "desc" },
     });
 
     if (!trialBalance) {

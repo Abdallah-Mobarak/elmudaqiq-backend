@@ -46,8 +46,9 @@ exports.saveSort = async (req, res, next) => {
         .json({ message: "يرجى تحديد الترتيب (sortOrder): asc أو desc." });
     }
 
-    const trialBalance = await prisma.trialBalance.findUnique({
+    const trialBalance = await prisma.trialBalance.findFirst({
       where: { contractId },
+      orderBy: { period: "desc" },
     });
 
     if (!trialBalance) {
@@ -116,8 +117,9 @@ exports.getUnassigned = async (req, res, next) => {
     const { contractId } = req.params;
     const { page = 1, limit = 25, search } = req.query;
 
-    const trialBalance = await prisma.trialBalance.findUnique({
+    const trialBalance = await prisma.trialBalance.findFirst({
       where: { contractId },
+      orderBy: { period: "desc" },
     });
 
     if (!trialBalance) {
@@ -179,8 +181,9 @@ exports.getAssigned = async (req, res, next) => {
     const { contractId } = req.params;
     const { page = 1, limit = 25, search, sortOrder } = req.query;
 
-    const trialBalance = await prisma.trialBalance.findUnique({
+    const trialBalance = await prisma.trialBalance.findFirst({
       where: { contractId },
+      orderBy: { period: "desc" },
     });
 
     if (!trialBalance) {
@@ -261,8 +264,9 @@ exports.assignAccounts = async (req, res, next) => {
         .json({ message: "يرجى إرسال مصفوفة التعيينات (assignments)." });
     }
 
-    const trialBalance = await prisma.trialBalance.findUnique({
+    const trialBalance = await prisma.trialBalance.findFirst({
       where: { contractId },
+      orderBy: { period: "desc" },
     });
 
     if (!trialBalance) {

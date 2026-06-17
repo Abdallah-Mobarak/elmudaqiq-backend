@@ -12,6 +12,7 @@ const {
   esc,
   entityLine,
   fiscalDateLabel,
+  fiscalPeriodText,
   htmlDoc,
   positionBody,
   incomeBody,
@@ -50,7 +51,7 @@ function coverBody(contract) {
     <div class="c2">${entityLine(c)}</div>
     <div class="c3">${esc(place)}</div>
     <div class="c4">القوائم المالية وتقرير مراجع الحسابات المستقل</div>
-    <div class="c5">للسنة المالية المنتهية في ${fiscalDateLabel(c)}</div>
+    <div class="c5">${fiscalPeriodText(c)}</div>
   </div></div>`;
 }
 
@@ -102,7 +103,14 @@ const OPINION_TITLES = {
   DISCLAIMER: "عدم إبداء الرأي",
 };
 
-function auditorReportBody(contract, { opinionType = "UNQUALIFIED", terms, framework, auditor = {} }) {
+function emphasisOfMatterBlock(emphasis) {
+  if (!emphasis || !emphasis.text) return "";
+  const ref = emphasis.note ? `الإيضاح رقم (${esc(emphasis.note)})` : "الإيضاح المرفق";
+  return `<div class="sec-title">لفت الانتباه</div>
+    <div class="para">نلفت الانتباه إلى ${ref} حول القوائم المالية، والذي يوضح أنه ${esc(emphasis.text)}. ولم يتم تعديل رأينا فيما يتعلق بهذا الأمر.</div>`;
+}
+
+function auditorReportBody(contract, { opinionType = "UNQUALIFIED", terms, framework, auditor = {}, emphasis = null }) {
   const name = fullName(contract);
   const dateLabel = fiscalDateLabel(contract);
   const a = {
@@ -124,6 +132,8 @@ function auditorReportBody(contract, { opinionType = "UNQUALIFIED", terms, frame
 
     <div class="sec-title">أساس ${esc(OPINION_TITLES[opinionType] || "الرأي")}</div>
     <div class="para">${basisParagraph(opinionType)}</div>
+
+    ${emphasisOfMatterBlock(emphasis)}
 
     <div class="sec-title">مسؤوليات الإدارة والمكلفين بالحوكمة عن القوائم المالية</div>
     <div class="para">تتحمل الإدارة مسؤولية إعداد القوائم المالية وعرضها بصورة عادلة وفقاً ${withLam(framework)}، وهي المسؤولة عن الرقابة الداخلية التي تراها الإدارة ضرورية لتمكينها من إعداد قوائم مالية خالية من أي تحريف جوهري سواء بسبب غش أو خطأ. وعند إعداد القوائم المالية، فإن الإدارة هي المسؤولة عن تقدير قدرة المنشأة على الاستمرار، والإفصاح بحسب مقتضى الحال عن الأمور ذات العلاقة بالاستمرارية. والمكلفون بالحوكمة هم المسؤولون عن الإشراف على عملية إعداد التقرير المالي للمنشأة.</div>
@@ -168,7 +178,7 @@ function changesInEquityBody(contract, position, income, terms) {
       <div class="company">${esc(contract.customerName || "")}</div>
       <div class="entity">${entityLine(contract)}</div>
       <div class="title">${esc(terms.equityTitle)}</div>
-      <div class="date">للسنة المالية المنتهية في ${fiscalDateLabel(contract)}</div>
+      <div class="date">${fiscalPeriodText(contract)}</div>
     </div>`;
 
   // Single period → closing balances only (movement needs comparative data).
@@ -235,7 +245,7 @@ function cashFlowsBody(contract, position, income, terms) {
       <div class="company">${esc(contract.customerName || "")}</div>
       <div class="entity">${entityLine(contract)}</div>
       <div class="title">قائمة التدفقات النقدية</div>
-      <div class="date">للسنة المالية المنتهية في ${fiscalDateLabel(contract)}</div>
+      <div class="date">${fiscalPeriodText(contract)}</div>
     </div>`;
 
   // Single period → structure only (movement analysis needs comparatives).
@@ -392,29 +402,64 @@ function generalNotesBody() {
 }
 
 const isPPELine = (name) => /(ممتلكات|آلات|آالت|معدات|عقارات|أصول ثابتة)/.test(String(name || ""));
+/** An accumulated-depreciation/amortization contra account (credit nature). */
+const isAccumDep = (name) => /(مجمع|مجمّع).*(إهلاك|اهلاك|إطفاء|اطفاء)|إهلاك\s*متراكم|اهلاك\s*متراكم/.test(String(name || ""));
 
-/** Property, Plant & Equipment movement schedule (FRD Table H — cost side). */
+/**
+ * Property, Plant & Equipment movement schedule (FRD Table H — full column set).
+ * Cost side from the cost accounts; accumulated-depreciation side from the
+ * matching contra accounts; both pulled from the trial-balance movement columns.
+ */
 function ppeMovementNote(line, detail) {
-  const th = (t) => `<th style="border-bottom:1px solid #111;padding:3px 6px;font-size:11px">${esc(t)}</th>`;
-  const head = `<tr>${th("البند")}${th("التكلفة أول المدة")}${th("إضافات")}${th("استبعادات")}${th("التكلفة آخر المدة")}${th("صافي القيمة الدفترية")}</tr>`;
-  let tBeg = 0, tAdd = 0, tDisp = 0, tEnd = 0, tNbv = 0;
-  const rows = detail
+  const th = (t, w) => `<th style="border-bottom:1px solid #111;padding:3px 5px;font-size:10.5px"${w ? ` width="${w}"` : ""}>${esc(t)}</th>`;
+  const cost = detail.filter((d) => !isAccumDep(d.accountName));
+  const dep = detail.filter((d) => isAccumDep(d.accountName));
+
+  // Cost side: opening debit + additions − disposals = cost at end.
+  let cBeg = 0, cAdd = 0, cDisp = 0, cEnd = 0;
+  const costRows = cost
     .map((d) => {
       const beg = d.beginningDebit || 0;
       const add = d.debitMovement || 0;
       const disp = d.creditMovement || 0;
       const end = beg + add - disp;
-      const nbv = Math.abs(d.amount || 0);
-      tBeg += beg; tAdd += add; tDisp += disp; tEnd += end; tNbv += nbv;
-      return `<tr><td class="col-caption">${esc(d.accountName)}</td><td class="amount">${money(beg)}</td><td class="amount">${money(add)}</td><td class="amount">${money(-disp)}</td><td class="amount">${money(end)}</td><td class="amount">${money(nbv)}</td></tr>`;
+      cBeg += beg; cAdd += add; cDisp += disp; cEnd += end;
+      return `<tr><td class="col-caption">${esc(d.accountName)}</td><td class="amount">${money(beg)}</td><td class="amount">${money(add)}</td><td class="amount">${money(-disp)}</td><td class="amount">${money(end)}</td></tr>`;
     })
     .join("");
+
+  // Accumulated-depreciation side: opening credit + charge − disposals of dep.
+  let dBeg = 0, dChg = 0, dDisp = 0, dEnd = 0;
+  const depRows = dep
+    .map((d) => {
+      const beg = d.beginningCredit || 0;
+      const chg = d.creditMovement || 0;
+      const disp = d.debitMovement || 0;
+      const end = beg + chg - disp;
+      dBeg += beg; dChg += chg; dDisp += disp; dEnd += end;
+      return `<tr><td class="col-caption">${esc(d.accountName)}</td><td class="amount">${money(beg)}</td><td class="amount">${money(chg)}</td><td class="amount">${money(-disp)}</td><td class="amount">${money(end)}</td></tr>`;
+    })
+    .join("");
+
+  const nbv = cEnd - dEnd;
+  const costHead = `<tr>${th("بيان التكلفة")}${th("أول المدة")}${th("إضافات")}${th("استبعادات")}${th("آخر المدة")}</tr>`;
+  const depHead = `<tr>${th("مجمع الإهلاك")}${th("أول المدة")}${th("إهلاك السنة")}${th("استبعادات")}${th("آخر المدة")}</tr>`;
+
+  const depSection = dep.length
+    ? `<table class="mini" style="width:100%;margin-top:8px"><thead>${depHead}</thead><tbody>${depRows}
+        <tr class="tot"><td class="col-caption">إجمالي مجمع الإهلاك</td><td class="amount">${money(dBeg)}</td><td class="amount">${money(dChg)}</td><td class="amount">${money(-dDisp)}</td><td class="amount">${money(dEnd)}</td></tr>
+      </tbody></table>`
+    : `<div class="footnote" style="text-align:right">لا توجد حسابات مجمع إهلاك مرتبطة بهذه الفئة؛ صافي القيمة الدفترية = التكلفة آخر المدة.</div>`;
+
   return `<div class="note-block">
     <div class="note-title">${line.note}. ${esc(line.name)}</div>
-    <table class="mini" style="width:100%"><thead>${head}</thead><tbody>${rows}
-      <tr class="tot"><td class="col-caption">المجموع</td><td class="amount">${money(tBeg)}</td><td class="amount">${money(tAdd)}</td><td class="amount">${money(-tDisp)}</td><td class="amount">${money(tEnd)}</td><td class="amount">${money(tNbv)}</td></tr>
+    <table class="mini" style="width:100%"><thead>${costHead}</thead><tbody>${costRows}
+      <tr class="tot"><td class="col-caption">إجمالي التكلفة</td><td class="amount">${money(cBeg)}</td><td class="amount">${money(cAdd)}</td><td class="amount">${money(-cDisp)}</td><td class="amount">${money(cEnd)}</td></tr>
     </tbody></table>
-    <div class="footnote" style="text-align:right">يُستكمل مجمع الإهلاك ضمن الجدول عند تأكيد ربط حسابات التكلفة بحسابات مجمع الإهلاك المقابلة لها.</div>
+    ${depSection}
+    <table class="mini" style="width:100%;margin-top:8px"><tbody>
+      <tr class="grand-total"><td class="col-caption">صافي القيمة الدفترية</td><td class="amount">${money(nbv)}</td></tr>
+    </tbody></table>
   </div>`;
 }
 
@@ -449,7 +494,7 @@ function breakdownNotesBody(model, statement) {
 function notesBody(contract, model, position, income, terms, framework) {
   return `<div class="sheet">
     <div class="report-head"><div class="company">${esc(contract.customerName || "")}</div><div>${entityLine(contract)}</div></div>
-    <div class="doc-title">إيضاحات حول القوائم المالية — للسنة المالية المنتهية في ${fiscalDateLabel(contract)}</div>
+    <div class="doc-title">إيضاحات حول القوائم المالية — ${fiscalPeriodText(contract)}</div>
     ${entityInfoNoteBody(contract)}
     ${policiesNoteBody(framework)}
     ${generalNotesBody()}
@@ -461,13 +506,13 @@ function notesBody(contract, model, position, income, terms, framework) {
 // ---------------------------------------------------------------------------
 // Full document assembler
 // ---------------------------------------------------------------------------
-function renderFullReport({ contract, model, position, income, opinionType = "UNQUALIFIED", auditor = {}, framework }) {
+function renderFullReport({ contract, model, position, income, opinionType = "UNQUALIFIED", auditor = {}, framework, emphasis = null }) {
   const terms = entityTerms(contract.legalEntity);
   const fw = framework || "المعايير الدولية للتقارير المالية المعتمدة في المملكة العربية السعودية";
   return htmlDoc(
     coverBody(contract),
     indexBody(contract, terms),
-    auditorReportBody(contract, { opinionType, terms, framework: fw, auditor }),
+    auditorReportBody(contract, { opinionType, terms, framework: fw, auditor, emphasis }),
     positionBody(position),
     incomeBody(income),
     changesInEquityBody(contract, position, income, terms),

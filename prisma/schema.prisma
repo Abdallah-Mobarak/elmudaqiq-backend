@@ -789,7 +789,7 @@ model EngagementContract {
   assignedStaff ContractStaff[]
   reviewGuides  ContractReviewGuide[]
   documents     ContractDocument[]
-  trialBalance  TrialBalance?
+  trialBalances TrialBalance[]
 
 
   createdAt DateTime @default(now())
@@ -875,8 +875,12 @@ model ContractDocument {
 // ===============================
 model TrialBalance {
   id           String   @id @default(uuid())
-  contractId   String   @unique
+  contractId   String
   contract     EngagementContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  // الفترة المالية للميزان (سنة الإقفال). الميزان الحالي يحمل أعلى قيمة،
+  // والفترات الأقدم تُستخدم كأعمدة مقارنة في القوائم المالية.
+  period       String   @default("") @db.VarChar(10)
 
   status       String   @default("DRAFT") // DRAFT, CONFIRMED
   uploadedById Int
@@ -886,6 +890,8 @@ model TrialBalance {
   updatedAt    DateTime @updatedAt
 
   accounts     TrialBalanceAccount[]
+
+  @@unique([contractId, period])
 }
 
 model TrialBalanceAccount {

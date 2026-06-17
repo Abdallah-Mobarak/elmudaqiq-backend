@@ -125,7 +125,7 @@ const isZero = (n) => Math.abs(round2(n)) < 0.005;
  *  - the full account guide for the subscriber
  * Returns the built+rolled tree and the section index.
  */
-async function loadModel(contractId) {
+async function loadModels(contractId) {
   const contract = await prisma.engagementContract.findUnique({
     where: { id: contractId },
     select: {
@@ -154,38 +154,98 @@ async function loadModel(contractId) {
     throw e;
   }
 
-  const trialBalance = await prisma.trialBalance.findUnique({
+  // كل الموازين للعقد، الأحدث أولاً (الفترة الأعلى = السنة الحالية، والأقدم أعمدة مقارنة).
+  const trialBalances = await prisma.trialBalance.findMany({
     where: { contractId },
-    select: { id: true, status: true },
+    orderBy: { period: "desc" },
+    select: { id: true, status: true, period: true },
   });
-  if (!trialBalance) {
+  if (!trialBalances.length) {
     const e = new Error("لم يتم العثور على ميزان مراجعة لهذا العقد.");
     e.status = 404;
     throw e;
   }
 
-  const [tbAccounts, guides] = await Promise.all([
-    prisma.trialBalanceAccount.findMany({
-      where: { trialBalanceId: trialBalance.id, assignedAccountGuideId: { not: null } },
-      select: {
-        id: true,
-        accountCode: true,
-        accountName: true,
-        finalBalance: true,
-        assignedAccountGuideId: true,
-        beginningDebit: true,
-        beginningCredit: true,
-        debitMovement: true,
-        creditMovement: true,
-      },
-    }),
-    prisma.accountGuide.findMany({
-      where: { subscriberId: contract.subscriberId },
-      select: { id: true, level: true, accountNumber: true, accountName: true },
-    }),
-  ]);
+  // دليل الحسابات مشترك على مستوى المشترك — يُحمّل مرة واحدة لكل الفترات.
+  const guides = await prisma.accountGuide.findMany({
+    where: { subscriberId: contract.subscriberId },
+    select: { id: true, level: true, accountNumber: true, accountName: true },
+  });
 
-  return buildModel({ contract, trialBalanceStatus: trialBalance.status, tbAccounts, guides });
+  const accountsByTb = await Promise.all(
+    trialBalances.map((tb) =>
+      prisma.trialBalanceAccount.findMany({
+        where: { trialBalanceId: tb.id, assignedAccountGuideId: { not: null } },
+        select: {
+          id: true,
+          accountCode: true,
+          accountName: true,
+          finalBalance: true,
+          assignedAccountGuideId: true,
+          beginningDebit: true,
+          beginningCredit: true,
+          debitMovement: true,
+          creditMovement: true,
+        },
+      })
+    )
+  );
+
+  return trialBalances.map((tb, i) =>
+    buildModel({ contract, trialBalanceStatus: tb.status, tbAccounts: accountsByTb[i], guides, period: tb.period })
+  );
+}
+
+/** Backward-compatible single-period loader: returns the current (latest) period model. */
+async function loadModel(contractId) {
+  return (await loadModels(contractId))[0];
+}
+
+// --- Auditor signature block (FRD 2.3.11 / BR-8): locked subscriber fields ---
+function gregorianLabel(d) {
+  return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}م`;
+}
+function hijriLabel(d) {
+  try {
+    const fmt = new Intl.DateTimeFormat("ar-SA-u-ca-islamic-umalqura-nu-latn", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    const parts = fmt.formatToParts(d);
+    const get = (t) => (parts.find((p) => p.type === t) || {}).value || "";
+    const y = get("year");
+    if (!y) return null;
+    return `${get("day")}/${get("month")}/${y}هـ`;
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Build the auditor signature block from the subscriber's locked profile fields.
+ * Name / license / office are non-editable subscriber data (FRD 2.3.11, BR-8);
+ * the report date is the issuance date (Gregorian + Umm al-Qura Hijri).
+ */
+async function loadAuditor(subscriberId, reportDate = new Date()) {
+  const sub = await prisma.subscriber.findUnique({
+    where: { id: subscriberId },
+    select: {
+      licenseName: true,
+      licenseNumber: true,
+      licenseType: true,
+      city: { select: { name: true } },
+    },
+  });
+  return {
+    name: (sub && sub.licenseName) || "",
+    office: "المكتب الرئيسي",
+    preamble: (sub && sub.licenseType) || "محاسبون ومراجعون قانونيون",
+    license: (sub && sub.licenseNumber) || "",
+    city: (sub && sub.city && sub.city.name) || "",
+    gregorianDate: gregorianLabel(reportDate),
+    hijriDate: hijriLabel(reportDate) || "",
+  };
 }
 
 /**
@@ -193,7 +253,7 @@ async function loadModel(contractId) {
  * accounts and the account guide rows, build the tree, roll the balances up,
  * and index the roots by statement section. Reused by loadModel and by demos/tests.
  */
-function buildModel({ contract, trialBalanceStatus = null, tbAccounts = [], guides = [] }) {
+function buildModel({ contract, trialBalanceStatus = null, tbAccounts = [], guides = [], period = "" }) {
   const { roots, byId } = buildGuideTree(guides);
 
   // Attach mapped TB balances onto their guide node and keep the detail (Level-4 notes).
@@ -236,6 +296,7 @@ function buildModel({ contract, trialBalanceStatus = null, tbAccounts = [], guid
   return {
     contract,
     trialBalanceStatus,
+    period,
     roots,
     byId,
     byAccountNumber,
@@ -332,8 +393,12 @@ const SVC_MONTHS = [
 ];
 function defaultPeriodLabel(model) {
   const d = model.contract && model.contract.fiscalYearEnd ? new Date(model.contract.fiscalYearEnd) : null;
-  if (!d || isNaN(d)) return "السنة الحالية";
-  return `${d.getDate()} ${SVC_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  // Each period model carries its own fiscal year (model.period); when it is a
+  // 4-digit year, use it so comparative columns show the right year (e.g. 2024).
+  const periodYear = /^\d{4}$/.test(model.period || "") ? Number(model.period) : null;
+  if (!d || isNaN(d)) return periodYear ? `31 ديسمبر ${periodYear}` : "السنة الحالية";
+  const year = periodYear || d.getFullYear();
+  return `${d.getDate()} ${SVC_MONTHS[d.getMonth()]} ${year}`;
 }
 function normalizePeriods(models) {
   return Array.isArray(models) ? models : [models];
@@ -391,7 +456,7 @@ function buildPositionStatement(models, noteSeq = { next: 6 }, periodLabels) {
 
 /** Statement of Financial Position — قائمة المركز المالي (loads from DB). */
 async function generateStatementOfFinancialPosition(contractId) {
-  return buildPositionStatement(await loadModel(contractId));
+  return buildPositionStatement(await loadModels(contractId));
 }
 
 /** Statement of Comprehensive Income from one or more period models. */
@@ -429,19 +494,21 @@ function buildIncomeStatement(models, noteSeq = { next: 6 }, periodLabels) {
 
 /** Statement of Comprehensive Income — قائمة الدخل الشامل (loads from DB). */
 async function generateStatementOfIncome(contractId) {
-  return buildIncomeStatement(await loadModel(contractId));
+  return buildIncomeStatement(await loadModels(contractId));
 }
 
 /**
  * Full report data — model + both statements with continuous note numbering.
  * Used by the full-report PDF endpoint (passed to renderFullReport).
  */
-async function generateFullReport(contractId) {
-  const model = await loadModel(contractId);
+async function generateFullReport(contractId, options = {}) {
+  const models = await loadModels(contractId); // [current, prior, ...] for comparative columns
+  const primary = models[0];
   const noteSeq = { next: 6 }; // shared so notes run continuously across statements
-  const position = buildPositionStatement(model, noteSeq);
-  const income = buildIncomeStatement(model, noteSeq);
-  return { contract: model.contract, model, position, income };
+  const position = buildPositionStatement(models, noteSeq);
+  const income = buildIncomeStatement(models, noteSeq);
+  const auditor = await loadAuditor(primary.contract.subscriberId, options.reportDate);
+  return { contract: primary.contract, model: primary, position, income, auditor };
 }
 
 module.exports = {
@@ -456,4 +523,5 @@ module.exports = {
   generateStatementOfIncome,
   generateFullReport,
   _loadModel: loadModel, // exported for future statements/notes
+  _loadModels: loadModels,
 };

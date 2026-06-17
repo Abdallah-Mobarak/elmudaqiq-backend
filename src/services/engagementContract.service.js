@@ -760,7 +760,7 @@ module.exports = {
     // Specific checks before advancing
     if (userRole === ROLES.TECHNICAL_AUDITOR) {
       // 1. Ensure Trial Balance is confirmed
-      const trialBalance = await prisma.trialBalance.findUnique({ where: { contractId } });
+      const trialBalance = await prisma.trialBalance.findFirst({ where: { contractId }, orderBy: { period: "desc" } });
       if (!trialBalance || trialBalance.status !== 'CONFIRMED') {
         throw { status: 400, customMessage: "Cannot submit. The trial balance must be uploaded and confirmed first." };
       }

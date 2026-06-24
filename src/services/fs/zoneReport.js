@@ -26,9 +26,16 @@ function lineAmounts(periodModels, code, credit) {
   });
 }
 
-/** Period column labels (current first). */
-function periodLabels(periodModels) {
-  return periodModels.map((m) => svc.defaultPeriodLabel(m));
+/** Period column labels (current first). On transition the oldest column is the
+ *  opening date, labelled "1 يناير {year+1}" instead of "31 ديسمبر {year}". */
+function periodLabels(periodModels, isTransition) {
+  const labels = periodModels.map((m) => svc.defaultPeriodLabel(m));
+  if (isTransition && labels.length >= 3) {
+    const oldest = periodModels[periodModels.length - 1];
+    const y = /^\d{4}$/.test(oldest.period || "") ? Number(oldest.period) + 1 : null;
+    if (y) labels[labels.length - 1] = `1 يناير ${y}`;
+  }
+  return labels;
 }
 
 // --- Note numbering (general policies 1..G; line notes from 6 by appearance) ---
@@ -46,8 +53,8 @@ function assignNotes(periodModels, extras) {
 }
 
 // --- Statement of Financial Position (Zone order) ---
-function positionSheet(contract, periodModels, notes, terms) {
-  const labels = periodLabels(periodModels);
+function positionSheet(contract, periodModels, notes, terms, isTransition) {
+  const labels = periodLabels(periodModels, isTransition);
   const np = periodModels.length;
   const head = `<div class="statement-header">
     <div class="company">${esc(contract.customerName || "")}</div>
@@ -76,13 +83,21 @@ function positionSheet(contract, periodModels, notes, terms) {
     sectionTotal[sectionKey] = totals;
   };
 
+  // Level-1 master heading row for a group (الموجودات / المطلوبات / حقوق الملكية).
+  const groupHead = (title) => rows.push(`<tr class="group-head"><td class="col-caption">${esc(title)}</td><td></td>${labels.map(() => "<td></td>").join("")}</tr>`);
+
+  groupHead("الموجودات");
   renderSection("CURRENT_ASSETS");
   renderSection("NONCURRENT_ASSETS");
   const totalAssets = labels.map((_, i) => r2(sectionTotal.CURRENT_ASSETS[i] + sectionTotal.NONCURRENT_ASSETS[i]));
   rows.push(`<tr class="section-total"><td class="col-caption">إجمالي الموجودات</td><td></td>${totalAssets.map((v) => `<td class="amount">${money(v)}</td>`).join("")}</tr>`);
 
+  groupHead(`المطلوبات و${terms.equityWord}`);
   renderSection("CURRENT_LIAB");
   renderSection("NONCURRENT_LIAB");
+  const totalLiabOnly = labels.map((_, i) => r2(sectionTotal.CURRENT_LIAB[i] + sectionTotal.NONCURRENT_LIAB[i]));
+  rows.push(`<tr class="section-total"><td class="col-caption">مجموع المطلوبات</td><td></td>${totalLiabOnly.map((v) => `<td class="amount">${money(v)}</td>`).join("")}</tr>`);
+  groupHead(terms.equityWord);
   renderSection("EQUITY");
   const totalLiab = labels.map((_, i) => r2(sectionTotal.CURRENT_LIAB[i] + sectionTotal.NONCURRENT_LIAB[i]));
   const totalEquity = sectionTotal.EQUITY;
@@ -103,9 +118,11 @@ function positionSheet(contract, periodModels, notes, terms) {
 
 // --- Statement of Comprehensive Income (Zone order) ---
 function incomeSheet(contract, periodModels, notes) {
-  const labels = periodLabels(periodModels);
+  // Income statement is presented for the year + comparative only (never the opening date).
+  const incPM = periodModels.slice(0, 2);
+  const labels = periodLabels(incPM, false);
   const colHead = labels.map((l) => `<th class="col-amount">${esc(l)}</th>`).join("");
-  const A = (code, credit) => lineAmounts(periodModels, code, credit);
+  const A = (code, credit) => lineAmounts(incPM, code, credit);
 
   const revenue = A(cat.STD.REVENUE, true);
   const cost = A(cat.STD.COST_OF_REVENUE, false);
@@ -158,6 +175,116 @@ function incomeSheet(contract, periodModels, notes) {
     <div class="footnote">الإيضاحات المرفقة تعتبر جزءاً لا يتجزأ من القوائم المالية</div></div>`;
 }
 
+// --- Statement of changes in equity (Zone matrix) ---------------------------
+// Columns: capital · statutory reserve · retained earnings · remeasurement · total.
+// Rows roll forward across every displayed year and reconcile by construction.
+function equitySheet(contract, periodModels, genInc, terms) {
+  const np = periodModels.length;
+  const netResult = (genInc && genInc.totals && genInc.totals.netResult) || [];
+  // equity contribution of a component = −(stored amount): credit balances positive,
+  // debit losses (remeasurement) negative; the four sum to total equity.
+  const comp = (i) => {
+    const g = (code) => { const n = periodModels[i] && periodModels[i].byAccountNumber.get(String(code)); return n ? -r2(n.amount) : 0; };
+    return { capital: g(cat.STD.CAPITAL), reserve: g(cat.STD.STATUTORY_RESERVE), retained: g(cat.STD.RETAINED_EARNINGS), remeasure: g(cat.STD.REMEASUREMENT_RESERVE) };
+  };
+  const yearOf = (i) => (/^\d{4}$/.test(periodModels[i].period || "") ? Number(periodModels[i].period) : null);
+  const cell = (v) => `<td class="amount">${v === 0 ? "-" : money(v)}</td>`;
+  const total = (o) => r2(o.capital + o.reserve + o.retained + o.remeasure);
+  const row = (label, o, cls = "line") => `<tr class="${cls}"><td class="col-caption">${esc(label)}</td>${cell(o.capital || 0)}${cell(o.reserve || 0)}${cell(o.retained || 0)}${cell(o.remeasure || 0)}<td class="amount">${money(total(o))}</td></tr>`;
+
+  const order = np >= 3 ? [2, 1, 0] : [1, 0]; // oldest → newest
+  const rows = [];
+  const openIdx = order[0];
+  const openY = yearOf(openIdx);
+  rows.push(row(`الرصيد في 1 يناير ${openY != null ? openY + 1 : ""}م`, comp(openIdx), "subtotal"));
+  for (let k = 1; k < order.length; k++) {
+    const pIdx = order[k - 1], cIdx = order[k];
+    const p = comp(pIdx), c = comp(cIdx);
+    const ni = r2(netResult[cIdx] || 0);
+    const oci = r2(c.remeasure - p.remeasure);
+    const transfer = r2(c.reserve - p.reserve);
+    const capChange = r2(c.capital - p.capital);
+    const distributions = r2((p.retained + ni - transfer) - c.retained); // plug on retained
+    if (ni) rows.push(row("صافي الدخل للسنة", { retained: ni }));
+    if (oci) rows.push(row("الدخل الشامل الآخر", { remeasure: oci }));
+    if (transfer) rows.push(row("المحوّل للاحتياطي النظامي", { reserve: transfer, retained: -transfer }));
+    if (capChange) rows.push(row("التغير في رأس المال", { capital: capChange }));
+    if (distributions) rows.push(row("توزيعات أرباح / مسحوبات", { retained: -distributions }));
+    rows.push(row(`الرصيد في 31 ديسمبر ${yearOf(cIdx)}م`, c, "section-total"));
+  }
+
+  const th = (t) => `<th class="col-amount">${esc(t)}</th>`;
+  const head = `<thead><tr><th class="caption col-caption">البيان</th>${th("رأس المال")}${th("الاحتياطي النظامي")}${th("الأرباح (الخسائر) المبقاة")}${th("إعادة قياس منافع الموظفين")}${th("المجموع")}</tr></thead>`;
+  return `<div class="sheet">
+    <div class="statement-header"><div class="company">${esc(contract.customerName || "")}</div><div class="entity">${entityLine(contract)}</div>
+      <div class="title">${esc(terms.equityTitle || "قائمة التغيرات في حقوق الملكية")}</div>
+      <div class="date">${fiscalPeriodText(contract)}</div></div>
+    <table class="fs">${head}<tbody>${rows.join("")}</tbody></table>
+    <div class="footnote">الإيضاحات المرفقة تعتبر جزءاً لا يتجزأ من القوائم المالية</div></div>`;
+}
+
+// --- Transition section (first-time adoption): effect-of-correction tables ---
+// Demo: no material remeasurement; adjustment columns are zero and the post-adoption
+// figure equals the previous-framework figure (only reclassification, per IFRS 1).
+function transitionSection(contract, periodModels, notes, terms) {
+  const compIdx = Math.min(1, periodModels.length - 1); // comparative year
+  const compLabel = svc.defaultPeriodLabel(periodModels[compIdx]);
+  const val = (code, credit) => lineAmounts(periodModels, code, credit)[compIdx] || 0;
+
+  const COLS = ["وفقاً للمعايير المحاسبية السعودية", "إعادة التصنيف والتبويب", "إعادة القياس وتصحيح الأخطاء", "القوائم بعد التطبيق"];
+  const th = (t) => `<th class="col-amount">${esc(t)}</th>`;
+  const colHead = `<thead><tr><th class="caption col-caption">البيان</th><th class="col-note">إيضاح</th>${COLS.map(th).join("")}</tr></thead>`;
+  const fourCols = (v) => `<td class="amount">${money(v)}</td><td class="amount">-</td><td class="amount">-</td><td class="amount">${money(v)}</td>`;
+  const noteCell = (key) => (notes[key] ? `<td class="note">${notes[key]}</td>` : "<td></td>");
+
+  const lineRow = (line, credit) => {
+    const v = val(line.code, credit);
+    if (Math.abs(v) < 0.5) return "";
+    return `<tr class="line"><td class="col-caption">${esc(line.label)}</td>${noteCell(line.key)}${fourCols(v)}</tr>`;
+  };
+  const totalRow = (label, v) => `<tr class="section-total"><td class="col-caption">${esc(label)}</td><td></td>${fourCols(v)}</tr>`;
+
+  // 3.1 Position
+  const bsSecK = { CURRENT_ASSETS: false, NONCURRENT_ASSETS: false, CURRENT_LIAB: true, NONCURRENT_LIAB: true, EQUITY: true };
+  const posRows = [];
+  let ta = 0, tle = 0;
+  for (const [sk, credit] of Object.entries(bsSecK)) {
+    const sec = cat.SECTIONS[sk];
+    posRows.push(`<tr class="section-head"><td class="col-caption">${esc(sec.title)}</td><td></td><td></td><td></td><td></td><td></td></tr>`);
+    for (const line of cat.LINES.filter((l) => l.section === sk)) {
+      const r = lineRow(line, credit);
+      if (r) { posRows.push(r); const v = val(line.code, credit); if (sk.includes("ASSET")) ta += v; else tle += v; }
+    }
+  }
+
+  // 3.2 Income
+  const inc = (code, credit) => val(code, credit);
+  const rev = inc(cat.STD.REVENUE, true), cost = inc(cat.STD.COST_OF_REVENUE, false);
+  const gross = r2(rev - cost);
+  const sell = inc(cat.STD.SELLING_EXPENSES, false), adm = inc(cat.STD.GENERAL_ADMIN, false), fin = inc(cat.STD.FINANCE_COSTS, false);
+  const other = inc(cat.STD.OTHER_INCOME, true), zak = Math.abs(inc(cat.STD.ZAKAT_PROVISION, true));
+  const net = r2(gross - sell - adm - fin + other - zak);
+  const incRow = (label, v, cls = "line") => `<tr class="${cls}"><td class="col-caption">${esc(label)}</td><td></td>${fourCols(v)}</tr>`;
+
+  return `<div class="sheet">
+    <div class="statement-header"><div class="company">${esc(contract.customerName || "")}</div><div class="entity">${entityLine(contract)}</div>
+      <div class="title">التسويات وأثر الانتقال إلى المعايير الدولية للتقارير المالية لأول مرة</div></div>
+    <div class="footnote" style="text-align:right">يوضح ما يلي أثر التصحيح عند الانتقال من الإطار المحاسبي السابق؛ البيانات تجريبية والأعمدة متوازنة.</div>
+
+    <div class="note-title" style="margin-top:8px">3.1 أثر التصحيح على قائمة المركز المالي كما في ${esc(compLabel)}</div>
+    <table class="fs">${colHead}<tbody>${posRows.join("")}
+      ${totalRow("إجمالي الموجودات", ta)}${totalRow("إجمالي المطلوبات وحقوق الملكية", tle)}</tbody></table>
+
+    <div class="note-title" style="margin-top:10px">3.2 أثر التصحيح على قائمة الدخل للسنة المنتهية في ${esc(compLabel)}</div>
+    <table class="fs">${colHead}<tbody>
+      ${incRow("الإيرادات", rev)}${incRow("تكلفة الإيرادات", -cost)}${incRow("مجمل الربح", gross, "subtotal")}
+      ${incRow("مصروفات بيعية وتسويقية", -sell)}${incRow("مصروفات عمومية وإدارية", -adm)}${incRow("مصروفات تمويلية", -fin)}
+      ${incRow("إيرادات أخرى", other)}${incRow("الزكاة الشرعية", -zak)}${incRow("صافي الدخل", net, "section-total")}</tbody></table>
+
+    <div class="footnote" style="text-align:right;margin-top:8px">ملاحظة تطبيقية: لم ينتج عن الانتقال أثر جوهري على القياس؛ واقتصرت التعديلات على إعادة التبويب لتتوافق مع العرض وفق المعايير الدولية، وذلك وفق المعيار الدولي للتقرير المالي رقم (1).</div>
+  </div>`;
+}
+
 const { notesSheet } = require("./zoneNotes");
 
 const FW_NOUN = {
@@ -185,16 +312,19 @@ async function generateZoneReportHtml(contractId, options = {}) {
 
   const notes = assignNotes(periodModels, extras);
 
-  return htmlDoc(
+  const sections = [
     RS.coverBody(contract),
     RS.indexBody(contract, terms),
     RS.auditorReportBody(contract, { opinionType, terms, framework: fwNoun, auditor, emphasis: options.emphasis || null }),
-    positionSheet(contract, periodModels, notes, terms),
+    positionSheet(contract, periodModels, notes, terms, isTransition),
     incomeSheet(contract, periodModels, notes),
-    RS.changesInEquityBody(contract, genPos, genInc, terms),
+    equitySheet(contract, periodModels, genInc, terms),
     RS.cashFlowsBody(contract, genPos, genInc, terms),
-    notesSheet(contract, periodModels, extras, notes, terms, fwLam, isTransition)
-  );
+  ];
+  if (isTransition) sections.push(transitionSection(contract, periodModels, notes, terms));
+  sections.push(notesSheet(contract, periodModels, extras, notes, terms, fwLam, isTransition));
+
+  return htmlDoc(...sections);
 }
 
 module.exports = { positionSheet, incomeSheet, lineAmounts, assignNotes, periodLabels, FRAMEWORKS, generateZoneReportHtml };

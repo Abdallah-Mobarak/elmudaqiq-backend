@@ -117,8 +117,12 @@ exports.getFullReportPdf = async (req, res, next) => {
     // Optional Emphasis of Matter (FRD 2.3.10): ?eomNote=<n>&eomText=<...>
     const emphasis = req.query.eomText ? { note: req.query.eomNote, text: req.query.eomText } : null;
 
-    const { contract, model, position, income, auditor } = await financialStatements.generateFullReport(contractId);
-    const html = renderFullReport({ contract, model, position, income, opinionType, auditor, framework, emphasis });
+    // The full report is now served in the Zone-parity format (statements in Zone
+    // order, full note catalog, movement tables, transition presentation when the
+    // engagement is a first-time adoption). The old generic renderer is kept for
+    // reference but no longer wired to this endpoint.
+    const { contract } = await financialStatements.generateFullReport(contractId); // contract for notifications
+    const html = await generateZoneReportHtml(contractId, { opinionType, framework: req.query.framework, emphasis });
     const { buffer } = await exportPdfFromHtml({ html, filePrefix: `full_report_${contractId}` });
 
     res.setHeader("Content-Type", "application/pdf");

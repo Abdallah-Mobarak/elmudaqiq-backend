@@ -48,7 +48,11 @@ function detailByPeriod(periodModels, code) {
 
 const amtCols = (vals, credit) => vals.map((v) => `<td class="amount">${money(credit ? -v : v)}</td>`).join("");
 
-function breakdownNote(no, line, periodModels, np, extras) {
+/** Header row with the period (year) labels above the value columns. */
+const periodHead = (labels) =>
+  `<thead><tr><th class="col-caption">البيان</th>${(labels || []).map((l) => `<th class="amount">${esc(l)}</th>`).join("")}</tr></thead>`;
+
+function breakdownNote(no, line, periodModels, np, extras, labels) {
   const credit = ["CURRENT_LIAB", "NONCURRENT_LIAB", "EQUITY", "INC_REVENUE", "INC_OTHER"].includes(line.section) || line.negative;
   const det = detailByPeriod(periodModels, line.code).filter((d) => !d.amounts.every((v) => Math.abs(v) < 0.005));
   const tot = Array.from({ length: np }, (_, i) => det.reduce((s, d) => s + d.amounts[i], 0));
@@ -62,7 +66,7 @@ function breakdownNote(no, line, periodModels, np, extras) {
   }
   return `<div class="note-block"><div class="note-title">${no}. ${esc(line.label)}</div>
     <div class="para">${esc(line.policyText || "")}</div>
-    <table class="mini"><tbody>${rows}${prov}<tr class="tot"><td class="col-caption">المجموع</td>${amtCols(tot, credit)}</tr></tbody></table></div>`;
+    <table class="mini">${periodHead(labels)}<tbody>${rows}${prov}<tr class="tot"><td class="col-caption">المجموع</td>${amtCols(tot, credit)}</tr></tbody></table></div>`;
 }
 
 function ppeNote(no, line, extras, np) {
@@ -86,24 +90,28 @@ function ppeNote(no, line, extras, np) {
     </tbody></table></div>`;
 }
 
-function moveCostNote(no, line, periodModels) {
-  // cost side + accumulated amort/dep side from the trial-balance movement columns of the line's detail.
-  const det = svc.getLineDetail(periodModels[0], Number(line.code)) || [];
+function moveCostNote(no, line, periodModels, labels) {
+  // cost side + accumulated amort/dep side from the trial-balance movement columns,
+  // computed PER PERIOD so the note shows a column per year (current + comparative).
   const isAccum = (n) => /(مجمع|مجمّع).*(إهلاك|اهلاك|إطفاء|اطفاء)/.test(String(n || ""));
-  const cost = det.filter((d) => !isAccum(d.accountName));
-  const acc = det.filter((d) => isAccum(d.accountName));
-  const sum = (arr, f) => arr.reduce((s, d) => s + f(d), 0);
-  const cb = sum(cost, (d) => d.beginningDebit || 0), ca = sum(cost, (d) => d.debitMovement || 0), cd = sum(cost, (d) => d.creditMovement || 0);
-  const ce = cb + ca - cd;
-  const ab = sum(acc, (d) => d.beginningCredit || 0), ac = sum(acc, (d) => d.creditMovement || 0), ad = sum(acc, (d) => d.debitMovement || 0);
-  const ae = ab + ac - ad;
-  const row = (l, v) => `<tr><td class="col-caption">${esc(l)}</td><td class="amount">${money(v)}</td></tr>`;
+  const per = periodModels.map((m) => {
+    const det = svc.getLineDetail(m, Number(line.code)) || [];
+    const cost = det.filter((d) => !isAccum(d.accountName));
+    const acc = det.filter((d) => isAccum(d.accountName));
+    const sum = (arr, f) => arr.reduce((s, d) => s + f(d), 0);
+    const cb = sum(cost, (d) => d.beginningDebit || 0), ca = sum(cost, (d) => d.debitMovement || 0), cd = sum(cost, (d) => d.creditMovement || 0);
+    const ab = sum(acc, (d) => d.beginningCredit || 0), ac = sum(acc, (d) => d.creditMovement || 0), ad = sum(acc, (d) => d.debitMovement || 0);
+    return { cb, ca, cd, ce: cb + ca - cd, ab, ac, ad, ae: ab + ac - ad };
+  });
+  const cells = (f) => per.map((p) => `<td class="amount">${money(f(p))}</td>`).join("");
+  const row = (l, f, cls = "") => `<tr class="${cls}"><td class="col-caption">${esc(l)}</td>${cells(f)}</tr>`;
+  const amort = esc(line.amortLabel || "مجمع الإطفاء");
   return `<div class="note-block"><div class="note-title">${no}. ${esc(line.label)}</div>
     <div class="para">${esc(line.policyText)}</div>
-    <table class="mini"><tbody>
-      ${row("التكلفة أول المدة", cb)}${row("إضافات", ca)}${row("استبعادات", -cd)}<tr class="subtotal"><td class="col-caption">التكلفة آخر المدة</td><td class="amount">${money(ce)}</td></tr>
-      ${row(`${esc(line.amortLabel || "مجمع الإطفاء")} أول المدة`, -ab)}${row("المحمّل خلال العام", -ac)}${row("استبعادات", ad)}<tr class="subtotal"><td class="col-caption">${esc(line.amortLabel || "مجمع الإطفاء")} آخر المدة</td><td class="amount">${money(-ae)}</td></tr>
-      <tr class="grand-total"><td class="col-caption">صافي القيمة الدفترية</td><td class="amount">${money(ce - ae)}</td></tr>
+    <table class="mini">${periodHead(labels)}<tbody>
+      ${row("التكلفة أول المدة", (p) => p.cb)}${row("إضافات", (p) => p.ca)}${row("استبعادات", (p) => -p.cd)}${row("التكلفة آخر المدة", (p) => p.ce, "subtotal")}
+      ${row(`${amort} أول المدة`, (p) => -p.ab)}${row("المحمّل خلال العام", (p) => -p.ac)}${row("استبعادات الإهلاك", (p) => p.ad)}${row(`${amort} آخر المدة`, (p) => -p.ae, "subtotal")}
+      ${row("صافي القيمة الدفترية", (p) => p.ce - p.ae, "grand-total")}
     </tbody></table></div>`;
 }
 
@@ -179,38 +187,86 @@ function capitalNote(no, line, extras) {
       <tr class="tot"><td class="col-caption">المجموع</td><td class="amount">${money(s.totalShares || 0)}</td><td></td><td class="amount">${money(s.capital || 0)}</td><td class="amount">100%</td></tr></tbody></table></div>`;
 }
 
-function relatedNote(no, line, extras) {
+function relatedNote(no, line, extras, labels) {
   const rp = extras.relatedParties || [];
   const rows = rp.map((p) => `<tr><td class="col-caption">${esc(p.name)}</td><td class="amount">${money(p.v2024 || 0)}</td><td class="amount">${money(p.v2023 || 0)}</td></tr>`).join("");
   const t24 = rp.reduce((s, p) => s + (p.v2024 || 0), 0), t23 = rp.reduce((s, p) => s + (p.v2023 || 0), 0);
+  const head = periodHead((labels || []).slice(0, 2));
   return `<div class="note-block"><div class="note-title">${no}. ${esc(line.label)}</div>
     <div class="para">${esc(line.policyText)}</div>
-    <table class="mini"><tbody>${rows}<tr class="tot"><td class="col-caption">المجموع</td><td class="amount">${money(t24)}</td><td class="amount">${money(t23)}</td></tr></tbody></table></div>`;
+    <table class="mini">${head}<tbody>${rows}<tr class="tot"><td class="col-caption">المجموع</td><td class="amount">${money(t24)}</td><td class="amount">${money(t23)}</td></tr></tbody></table></div>`;
 }
 
-function lineNote(no, line, periodModels, extras, np) {
+function lineNote(no, line, periodModels, extras, np, labels) {
   switch (line.noteType) {
     case "PPE": return ppeNote(no, line, extras, np);
-    case "MOVE_COST": return moveCostNote(no, line, periodModels);
+    case "MOVE_COST": return moveCostNote(no, line, periodModels, labels);
     case "EMP_BEN": return empBenefitNote(no, line, extras);
     case "ZAKAT": return zakatNote(no, line, extras);
     case "LEASE": return leaseNote(no, line, periodModels, extras);
     case "CAPITAL": return capitalNote(no, line, extras);
-    case "RELATED": return relatedNote(no, line, extras);
+    case "RELATED": return relatedNote(no, line, extras, labels);
     case "PROVISION": return provisionNote(no, line, periodModels, extras);
-    default: return breakdownNote(no, line, periodModels, np, extras);
+    default: return breakdownNote(no, line, periodModels, np, extras, labels);
   }
 }
 
+/** Standard closing notes that always appear after the line notes (Zone 30–32). */
+function closingNotes(startNo, contract, extras, terms) {
+  let no = startNo;
+  const block = (title, body) => `<div class="note-block"><div class="note-title">${no++}. ${esc(title)}</div>${body}</div>`;
+  const p = (t) => `<div class="para">${t}</div>`;
+
+  const risk = block("إدارة المخاطر المالية",
+    p("تتعرض أنشطة المنشأة لمخاطر مالية تشمل مخاطر السوق (مخاطر العملات وأسعار العمولات والقيمة العادلة) ومخاطر الائتمان ومخاطر السيولة. ترّكز سياسة المنشأة على تحديد وتقييم ومراقبة هذه المخاطر للحد من آثارها السلبية، وفق المعيار الدولي للتقارير المالية رقم (7).") +
+    p("<b>مخاطر العملات:</b> تتم غالبية معاملات المنشأة بالريال السعودي، ولا تتعرض لمخاطر جوهرية من تقلبات أسعار الصرف.") +
+    p("<b>مخاطر الائتمان:</b> تنشأ من النقد لدى البنوك والذمم المدينة، وتُدار بإيداع النقد لدى بنوك ذات تصنيف جيد ومراقبة الذمم دورياً.") +
+    p("<b>مخاطر السيولة:</b> تراقب الإدارة متطلبات السيولة لضمان توفر النقد الكافي للوفاء بالالتزامات عند استحقاقها."));
+
+  const comparatives = block("أرقام المقارنة",
+    p("أُعيد تصنيف بعض أرقام المقارنة للسنة السابقة، عند الضرورة، لتتوافق مع عرض وتصنيف السنة الحالية، ولم يكن لإعادة التصنيف أي أثر على صافي حقوق الملكية أو صافي الدخل للسنة السابقة، وفق معيار المحاسبة الدولي رقم (1)."));
+
+  const subsequent = block("الأحداث اللاحقة لتاريخ القوائم المالية",
+    p("لم تطرأ أحداث جوهرية بعد تاريخ القوائم المالية وحتى تاريخ اعتمادها من شأنها أن تتطلب تعديلاً في القوائم المالية أو الإفصاح عنها، وفق معيار المحاسبة الدولي رقم (10)."));
+
+  const partners = (extras.shares && extras.shares.partners) || [];
+  const sigRows = partners.length
+    ? partners.map((pt) => `<tr><td class="col-caption">${esc(pt.name)}</td><td style="height:26px"></td></tr>`).join("")
+    : `<tr><td class="col-caption">${esc(terms.equityWord || "الملاك")}</td><td style="height:26px"></td></tr>`;
+  const approval = block("اعتماد القوائم المالية",
+    p(`تم اعتماد هذه القوائم المالية من قبل ${esc(terms.managers || "الشركاء/مجلس المديرين")} بتاريخ ... / ... / ${(contract.fiscalYearEnd ? new Date(contract.fiscalYearEnd).getFullYear() + 1 : "")}م.`) +
+    `<table class="mini"><thead><tr><th class="col-caption">الاسم</th><th>التوقيع</th></tr></thead><tbody>${sigRows}</tbody></table>`);
+
+  return risk + comparatives + subsequent + approval;
+}
+
 function notesSheet(contract, periodModels, extras, notes, terms, framework, isTransition) {
-  const np = periodModels.length;
-  const blocks = cat.LINES.filter((l) => notes[l.key]).sort((a, b) => notes[a.key] - notes[b.key]).map((l) => lineNote(notes[l.key], l, periodModels, extras, np)).join("");
+  const labels = periodModels.map((m) => svc.defaultPeriodLabel(m));
+  if (isTransition && labels.length >= 3) {
+    const oldest = periodModels[periodModels.length - 1];
+    const y = /^\d{4}$/.test(oldest.period || "") ? Number(oldest.period) + 1 : null;
+    if (y) labels[labels.length - 1] = `1 يناير ${y}`;
+  }
+  // IFRS-1 application note shown under each note only on first-time adoption.
+  const applyNote = isTransition
+    ? `<div class="footnote" style="text-align:right;margin-top:4px">ملاحظة تطبيقية: عند التحول إلى المعايير الدولية للتقارير المالية، روجع الاعتراف والقياس والعرض لهذا البند ولم ينتج عن ذلك أثر جوهري، وذلك وفق المعيار الدولي للتقرير المالي رقم (1).</div>`
+    : "";
+  const blocks = cat.LINES.filter((l) => notes[l.key]).sort((a, b) => notes[a.key] - notes[b.key]).map((l) => {
+    // income-statement notes are presented for the year + comparative only (no opening column).
+    const isInc = String(l.section).startsWith("INC_");
+    const pm = isInc ? periodModels.slice(0, 2) : periodModels;
+    const lb = isInc ? labels.slice(0, 2) : labels;
+    return lineNote(notes[l.key], l, pm, extras, pm.length, lb) + applyNote;
+  }).join("");
+  const maxNote = Math.max(5, ...Object.values(notes).filter((x) => typeof x === "number"));
+  const closing = closingNotes(maxNote + 1, contract, extras, terms);
   return `<div class="sheet">
     <div class="report-head"><div class="company">${esc(contract.customerName || "")}</div><div>${entityLine(contract)}</div></div>
     <div class="doc-title">إيضاحات حول القوائم المالية — ${fiscalPeriodText(contract)}</div>
     ${entityInfoNote(contract)}
     ${generalPoliciesNote(framework, isTransition)}
     ${blocks}
+    ${closing}
   </div>`;
 }
 

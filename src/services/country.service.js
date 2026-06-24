@@ -89,9 +89,18 @@ module.exports = {
     const city = await prisma.city.findFirst({ where: { countryId: id } });
 
     if (city) {
-      throw { 
-        customMessage: "Cannot delete country because cities exist", 
-        status: 400 
+      throw {
+        customMessage: "Cannot delete country because cities exist",
+        status: 400
+      };
+    }
+
+    const subscriber = await prisma.subscriber.findFirst({ where: { countryId: id } });
+
+    if (subscriber) {
+      throw {
+        customMessage: "Cannot delete country because subscribers are linked to it",
+        status: 400
       };
     }
 

@@ -241,6 +241,8 @@ function cashFlowsBody(contract, position, income, terms) {
   const prior = (a) => (Array.isArray(a) ? a[1] : 0) || 0;
   const netIncome = income && income.totals ? cur(income.totals.netResult) : 0;
 
+  const flowLabel = (position.periods && position.periods[0]) || "السنة الحالية";
+  const colHead = `<thead><tr><th class="caption col-caption">البيان</th><th class="col-amount">${esc(flowLabel)}</th></tr></thead>`;
   const header = `<div class="statement-header">
       <div class="company">${esc(contract.customerName || "")}</div>
       <div class="entity">${entityLine(contract)}</div>
@@ -251,7 +253,7 @@ function cashFlowsBody(contract, position, income, terms) {
   // Single period → structure only (movement analysis needs comparatives).
   if (np < 2) {
     return `<div class="sheet">${header}
-      <table class="fs"><tbody>
+      <table class="fs">${colHead}<tbody>
         <tr class="section-head"><td class="col-caption" colspan="2">التدفقات النقدية من الأنشطة التشغيلية</td></tr>
         <tr class="line"><td class="col-caption">صافي الدخل للسنة</td><td class="amount">${money(netIncome)}</td></tr>
         <tr class="section-head"><td class="col-caption" colspan="2">الأنشطة الاستثمارية</td></tr>
@@ -340,7 +342,7 @@ function cashFlowsBody(contract, position, income, terms) {
     : `<span class="balance-fail">⚠ فرق في تسوية النقد: ${money(closingCash - (openingCash + netChange))}</span>`;
 
   return `<div class="sheet">${header}
-    <table class="fs"><tbody>${rows.join("")}</tbody></table>
+    <table class="fs">${colHead}<tbody>${rows.join("")}</tbody></table>
     <div class="footnote">${note}</div>
   </div>`;
 }

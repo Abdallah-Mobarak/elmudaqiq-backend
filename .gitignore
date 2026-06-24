@@ -11,3 +11,5 @@ README-DEPLOY.md
 
 # Ignore Windows thumbnail cache
 Thumbs.db
+# Editor / IDE local settings
+.vscode/

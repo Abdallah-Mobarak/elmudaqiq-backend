@@ -1,57 +1,64 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
+const isValidDate = (d) => d instanceof Date && !isNaN(d.getTime());
+
+// Resolves current + previous date ranges from KPI query params and
+// validates them, so an invalid/missing param never reaches Prisma as
+// `new Date("Invalid Date")`.
+const resolveDateRange = ({ mode, date, year, month, from, to }) => {
+  year = year ? Number(year) : null;
+  month = month ? Number(month) : null;
+
+  let currentStart, currentEnd, previousStart, previousEnd;
+
+  if (mode === "day") {
+    currentStart = new Date(`${date}T00:00:00`);
+    currentEnd   = new Date(`${date}T23:59:59`);
+
+    previousStart = new Date(currentStart);
+    previousStart.setDate(previousStart.getDate() - 1);
+
+    previousEnd = new Date(currentEnd);
+    previousEnd.setDate(previousEnd.getDate() - 1);
+  } else if (mode === "month") {
+    currentStart = new Date(year, month - 1, 1);
+    currentEnd   = new Date(year, month, 1);
+
+    previousStart = new Date(year, month - 2, 1);
+    previousEnd   = new Date(year, month - 1, 1);
+  } else if (mode === "year") {
+    currentStart = new Date(year, 0, 1);
+    currentEnd   = new Date(year + 1, 0, 1);
+
+    previousStart = new Date(year - 1, 0, 1);
+    previousEnd   = new Date(year, 0, 1);
+  } else if (mode === "custom") {
+    currentStart = new Date(from);
+    currentEnd   = new Date(to);
+
+    const diff = currentEnd - currentStart;
+    previousEnd = new Date(currentStart);
+    previousStart = new Date(previousEnd - diff);
+  } else {
+    throw { customMessage: "Invalid mode. Expected one of: day, month, year, custom", status: 400 };
+  }
+
+  if (![currentStart, currentEnd, previousStart, previousEnd].every(isValidDate)) {
+    throw { customMessage: "Invalid or missing date parameters", status: 400 };
+  }
+
+  return { currentStart, currentEnd, previousStart, previousEnd };
+};
+
 module.exports = {
   // ===============================
   //  SUBSCRIBERS KPI
   // ===============================
   getSubscribersStats: async ({ mode, date, year, month, from, to }) => {
 
-    year = year ? Number(year) : null;
-    month = month ? Number(month) : null;
-
-    let currentStart, currentEnd, previousStart, previousEnd;
-
-    // -------- DAY MODE --------
-    if (mode === "day") {
-      currentStart = new Date(`${date}T00:00:00`);
-      currentEnd   = new Date(`${date}T23:59:59`);
-
-      previousStart = new Date(currentStart);
-      previousStart.setDate(previousStart.getDate() - 1);
-
-      previousEnd = new Date(currentEnd);
-      previousEnd.setDate(previousEnd.getDate() - 1);
-    }
-
-    // -------- MONTH MODE --------
-    if (mode === "month") {
-      currentStart = new Date(year, month - 1, 1);
-      currentEnd   = new Date(year, month, 1);
-
-      previousStart = new Date(year, month - 2, 1);
-      previousEnd   = new Date(year, month - 1, 1);
-    }
-
-    // -------- YEAR MODE --------
-    if (mode === "year") {
-      currentStart = new Date(year, 0, 1);
-      currentEnd   = new Date(year + 1, 0, 1);
-
-      previousStart = new Date(year - 1, 0, 1);
-      previousEnd   = new Date(year, 0, 1);
-    }
-
-    // -------- CUSTOM MODE --------
-    if (mode === "custom") {
-      currentStart = new Date(from);
-      currentEnd   = new Date(to);
-
-      const diff = currentEnd - currentStart;
-
-      previousEnd = new Date(currentStart);
-      previousStart = new Date(previousEnd - diff);
-    }
+    const { currentStart, currentEnd, previousStart, previousEnd } =
+      resolveDateRange({ mode, date, year, month, from, to });
 
     const currentTotal = await prisma.subscriber.count({
       where: {
@@ -89,51 +96,8 @@ module.exports = {
   // ===============================
   getFilesKPI: async ({ mode, date, year, month, from, to }) => {
 
-    year = year ? Number(year) : null;
-    month = month ? Number(month) : null;
-
-    let currentStart, currentEnd, previousStart, previousEnd;
-
-    // -------- DAY MODE --------
-    if (mode === "day") {
-      currentStart = new Date(`${date}T00:00:00`);
-      currentEnd   = new Date(`${date}T23:59:59`);
-
-      previousStart = new Date(currentStart);
-      previousStart.setDate(previousStart.getDate() - 1);
-
-      previousEnd = new Date(currentEnd);
-      previousEnd.setDate(previousEnd.getDate() - 1);
-    }
-
-    // -------- MONTH MODE --------
-    if (mode === "month") {
-      currentStart = new Date(year, month - 1, 1);
-      currentEnd   = new Date(year, month, 1);
-
-      previousStart = new Date(year, month - 2, 1);
-      previousEnd   = new Date(year, month - 1, 1);
-    }
-
-    // -------- YEAR MODE --------
-    if (mode === "year") {
-      currentStart = new Date(year, 0, 1);
-      currentEnd   = new Date(year + 1, 0, 1);
-
-      previousStart = new Date(year - 1, 0, 1);
-      previousEnd   = new Date(year, 0, 1);
-    }
-
-    // -------- CUSTOM MODE --------
-    if (mode === "custom") {
-      currentStart = new Date(from);
-      currentEnd   = new Date(to);
-
-      const diff = currentEnd - currentStart;
-
-      previousEnd = new Date(currentStart);
-      previousStart = new Date(previousEnd - diff);
-    }
+    const { currentStart, currentEnd, previousStart, previousEnd } =
+      resolveDateRange({ mode, date, year, month, from, to });
 
     // Current period files count
     const currentTotal = await prisma.uploadedFile.count({
@@ -217,34 +181,8 @@ module.exports = {
   // ===============================
   getComplaintsKPI: async ({ mode, date, year, month, from, to }) => {
 
-    year = year ? Number(year) : null;
-    month = month ? Number(month) : null;
-
-    let currentStart, currentEnd;
-
-    // -------- DAY MODE --------
-    if (mode === "day") {
-      currentStart = new Date(`${date}T00:00:00`);
-      currentEnd   = new Date(`${date}T23:59:59`);
-    }
-
-    // -------- MONTH MODE --------
-    if (mode === "month") {
-      currentStart = new Date(year, month - 1, 1);
-      currentEnd   = new Date(year, month, 1);
-    }
-
-    // -------- YEAR MODE --------
-    if (mode === "year") {
-      currentStart = new Date(year, 0, 1);
-      currentEnd   = new Date(year + 1, 0, 1);
-    }
-
-    // -------- CUSTOM MODE --------
-    if (mode === "custom") {
-      currentStart = new Date(from);
-      currentEnd   = new Date(to);
-    }
+    const { currentStart, currentEnd } =
+      resolveDateRange({ mode, date, year, month, from, to });
 
     const total = await prisma.complaint.count({
       where: {
@@ -279,6 +217,10 @@ module.exports = {
   getYearlyProfitKPI: async ({ year }) => {
 
   const safeYear = Number(year); //  تحويل آمن لرقم
+
+  if (!Number.isInteger(safeYear) || safeYear < 1970) {
+    throw { customMessage: "Invalid or missing year parameter", status: 400 };
+  }
 
   const startDate = new Date(safeYear, 0, 1);       // 1 Jan
   const endDate   = new Date(safeYear + 1, 0, 1);   // 1 Jan السنة اللي بعدها

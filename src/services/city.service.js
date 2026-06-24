@@ -94,6 +94,15 @@ module.exports = {
       throw { customMessage: "Cannot delete city because regions exist", status: 400 };
     }
 
+    // Check if this City has Subscribers linked to it
+    const subscriber = await prisma.subscriber.findFirst({
+      where: { cityId: id }
+    });
+
+    if (subscriber) {
+      throw { customMessage: "Cannot delete city because subscribers are linked to it", status: 400 };
+    }
+
     await prisma.city.delete({ where: { id } });
 
     return { message: "City deleted" };

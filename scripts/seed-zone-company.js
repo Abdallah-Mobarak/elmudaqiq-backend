@@ -137,19 +137,15 @@ const EXTRAS = {
     shareValue: 10,
     totalShares: 100000,
     partners: [
-      { name: "د. سعيد محمد الشهري", shares: 16666, pct: "16.66%" },
-      { name: "د. أسامة محمد الخزيم", shares: 16666, pct: "16.66%" },
-      { name: "د. عمرو محمد عبد الجبار", shares: 16670, pct: "16.67%" },
-      { name: "د. صالح طلال المطيري", shares: 16666, pct: "16.66%" },
-      { name: "د. عبد العزيز نزار مدني", shares: 16666, pct: "16.66%" },
-      { name: "د. محمد عطاء المشعلي", shares: 16666, pct: "16.66%" },
+      { name: "أحمد عبدالله السالم", shares: 34000, pct: "34%" },
+      { name: "سعد محمد القحطاني", shares: 33000, pct: "33%" },
+      { name: "خالد إبراهيم العتيبي", shares: 33000, pct: "33%" },
     ],
   },
   relatedParties: [
-    { name: "جاري الشريك د. سعيد الشهري", v2024: 120000, v2023: 160000 },
-    { name: "جاري الشريك د. أسامة الخزيم", v2024: 100000, v2023: 140000 },
-    { name: "جاري الشريك د. عمرو عبد الجبار", v2024: 90000, v2023: 120000 },
-    { name: "جاري الشريك د. صالح المطيري", v2024: 90000, v2023: 100000 },
+    { name: "جاري الشريك أحمد السالم", v2024: 160000, v2023: 210000 },
+    { name: "جاري الشريك سعد القحطاني", v2024: 140000, v2023: 180000 },
+    { name: "جاري الشريك خالد العتيبي", v2024: 100000, v2023: 130000 },
   ],
   provisions: {
     "1122": { begin: 15000, charge: 5000, used: 0 }, // doubtful debts
@@ -175,9 +171,10 @@ function scaleExtras(obj, k) {
 }
 
 const PROFILES = {
-  "dae46abe-3c09-4640-9a6e-80ba7b453663": { name: "شركة المثال الطبية", legalEntity: "شركة ذات مسؤولية محدودة", nationality: "سعودية", scale: 1, framework: "IFRS", transition: false, cr: "1010688081", tax: "310868951000003", unified: "7021554345" },
+  "dae46abe-3c09-4640-9a6e-80ba7b453663": { name: "شركة المثال الطبية", legalEntity: "شركة ذات مسؤولية محدودة", nationality: "سعودية", scale: 1, framework: "IFRS", transition: true, cr: "1010688081", tax: "310868951000003", unified: "7021554345" },
   "59625976-ca29-4110-b633-e7202e131801": { name: "مؤسسة فاليو التجارية", legalEntity: "مؤسسة فردية", nationality: "سعودية", scale: 0.5, framework: "SME", transition: false, cr: "1010555221", tax: "300055522100003", unified: "7005552210" },
   "5fc3e650-f110-438e-85c0-cfcadeff54fa": { name: "شركة الحمد الصناعية", legalEntity: "شركة مساهمة مغلقة", nationality: "سعودية", scale: 2, framework: "IFRS", transition: false, cr: "1010777443", tax: "300077744300003", unified: "7007774430" },
+  "f95ebb53-f4df-4b91-bd6e-3ad106220b2a": { name: "شركة فخر9 التجارية", legalEntity: "شركة ذات مسؤولية محدودة", nationality: "سعودية", scale: 1.3, framework: "IFRS", transition: false, cr: "1010334455", tax: "300033445500003", unified: "7003344550" },
 };
 
 async function seedCompany(contractId) {
@@ -222,17 +219,24 @@ async function seedCompany(contractId) {
     },
   });
 
-  // 3) two periods
+  // 3) periods: current + comparative (+ opening date for first-time adoption / transition).
+  // Opening (2022) = balance-sheet accounts scaled to 0.8 of 2023 (stays balanced, since
+  // a balanced TB scaled by a constant is still balanced); income accounts are 0 at a point in time.
   await prisma.trialBalance.deleteMany({ where: { contractId: CONTRACT_ID } });
   const uploaderId = (await prisma.user.findFirst({ where: { subscriberId }, select: { id: true } }) || await prisma.user.findFirst({ select: { id: true } })).id;
-  for (const period of ["2024", "2023"]) {
+  const periods = profile.transition ? ["2024", "2023", "2022"] : ["2024", "2023"];
+  for (const period of periods) {
     const tb = await prisma.trialBalance.create({ data: { contractId: CONTRACT_ID, period, status: "CONFIRMED", uploadedById: uploaderId }, select: { id: true } });
-    const idx = period === "2024" ? 0 : 1;
+    const idx = period === "2024" ? 0 : 1; // movement columns from 2024/2023 sets
     const rows = TB.map(([accountCode, accountName, fb24, fb23, num, mv24, mv23]) => {
-      const mv = (idx === 0 ? mv24 : mv23) || {};
+      const isBalanceSheet = ["1", "2", "3"].includes(String(accountCode)[0]);
+      let fb;
+      if (period === "2022") fb = isBalanceSheet ? scaleVal(fb23 * 0.8, k) : 0;
+      else fb = scaleVal(period === "2024" ? fb24 : fb23, k);
+      const mv = (period === "2022" ? {} : (idx === 0 ? mv24 : mv23)) || {};
       return {
         trialBalanceId: tb.id, accountCode, accountName,
-        finalBalance: scaleVal(idx === 0 ? fb24 : fb23, k),
+        finalBalance: fb,
         assignedAccountGuideId: guideByNum.get(num) || null,
         beginningDebit: scaleVal(mv.beginningDebit || 0, k), beginningCredit: scaleVal(mv.beginningCredit || 0, k),
         debitMovement: scaleVal(mv.debitMovement || 0, k), creditMovement: scaleVal(mv.creditMovement || 0, k),

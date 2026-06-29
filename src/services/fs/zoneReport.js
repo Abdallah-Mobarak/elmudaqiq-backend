@@ -295,6 +295,16 @@ const FW_NOUN = {
 /** Build the complete Zone-format report HTML for an engagement. */
 async function generateZoneReportHtml(contractId, options = {}) {
   const periodModels = await svc._loadModels(contractId);
+  // التقرير الكامل يقارن السنة الحالية بسنة سابقة (أعمدة المقارنة + قائمة التغيّر في
+  // حقوق الملكية)، لذا يلزم وجود فترتين على الأقل. نرجع رسالة واضحة بدل الانهيار.
+  if (periodModels.length < 2) {
+    const e = new Error(
+      "التقرير المالي الكامل يتطلب فترتين على الأقل (السنة الحالية وسنة المقارنة)، " +
+      "وتم العثور على فترة واحدة فقط لهذا العقد. الرجاء رفع ميزان مراجعة لسنة سابقة وتأكيده ثم إعادة المحاولة."
+    );
+    e.status = 400;
+    throw e;
+  }
   const contract = periodModels[0].contract;
   const extras = await getExtras(contractId);
   const auditor = await svc.loadAuditor(contract.subscriberId, options.reportDate);

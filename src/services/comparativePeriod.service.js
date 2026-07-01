@@ -203,8 +203,7 @@ async function saveManual(contractId, year, accounts) {
     throw e;
   }
 
-  // استبدال كامل: احذف القديم وأدخل الجديد بأرصدة محسوبة.
-  await prisma.trialBalanceAccount.deleteMany({ where: { trialBalanceId: tb.id } });
+  // يدعم إضافة صفوف جديدة: أي حساب في المصفوفة (قديم أو مضاف يدوياً) يُدخَل.
   const rows = accounts
     .filter((a) => a && String(a.accountCode || "").trim())
     .map((a) => {
@@ -221,6 +220,22 @@ async function saveManual(contractId, year, accounts) {
       };
       return { ...base, ...calculateBalances(base) };
     });
+
+  // منع تكرار كود الحساب (قيد unique على [trialBalanceId, accountCode]).
+  const seen = new Set();
+  const dups = new Set();
+  for (const r of rows) {
+    if (seen.has(r.accountCode)) dups.add(r.accountCode);
+    seen.add(r.accountCode);
+  }
+  if (dups.size) {
+    const e = new Error("يوجد أكواد حسابات مكررة: " + [...dups].join("، "));
+    e.status = 400;
+    throw e;
+  }
+
+  // استبدال كامل: احذف القديم وأدخل الجديد بأرصدة محسوبة.
+  await prisma.trialBalanceAccount.deleteMany({ where: { trialBalanceId: tb.id } });
   if (rows.length) await prisma.trialBalanceAccount.createMany({ data: rows });
 
   return getGrid(contractId, year);

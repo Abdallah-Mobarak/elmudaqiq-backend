@@ -389,15 +389,19 @@ exports.updateAccountAdjustments = async (req, res, next) => {
       return res.status(404).json({ message: "Account not found." });
     }
     
-    if (account.trialBalance.contract.workflowStage !== 'PENDING_TECHNICAL_AUDIT') {
-      return res.status(403).json({ message: "لا يمكن التعديل، تم إغلاق هذه المرحلة من العمل." });
-    }
-
-    // بعد الاعتماد: يُسمح للمدقق الفني فقط بالتعديل، وطالما العقد لا يزال في مرحلة
-    // التدقيق الفني (الشرط أعلاه). التعديل يظل على أعمدة التسوية في ورقة العمل.
+    const stage = account.trialBalance.contract.workflowStage;
     const isConfirmed = account.trialBalance.status === 'CONFIRMED';
-    if (isConfirmed && req.user.role !== ROLES.TECHNICAL_AUDITOR) {
-      return res.status(403).json({ message: "ميزان المراجعة معتمد ومقفل. التعديل بعد الاعتماد متاح للمدقق الفني فقط." });
+    const isTechAuditor = req.user.role === ROLES.TECHNICAL_AUDITOR;
+
+    // المدقق الفني يقدر يعدّل التسويات دائماً (أي مرحلة، وحتى بعد الاعتماد).
+    // باقي الأدوار: التعديل مسموح فقط في مرحلة التدقيق الفني وقبل الاعتماد.
+    if (!isTechAuditor) {
+      if (stage !== 'PENDING_TECHNICAL_AUDIT') {
+        return res.status(403).json({ message: "لا يمكن التعديل، تم إغلاق هذه المرحلة من العمل." });
+      }
+      if (isConfirmed) {
+        return res.status(403).json({ message: "لا يمكن تعديل التسويات، ميزان المراجعة معتمد ومقفل." });
+      }
     }
 
     const accountForCalc = { ...account, ...req.body };
@@ -408,8 +412,8 @@ exports.updateAccountAdjustments = async (req, res, next) => {
       data: { ...req.body, ...newCalculations }
     });
 
-    // أثر واضح: سجّل أي تعديل يحدث بعد اعتماد الميزان.
-    if (isConfirmed) {
+    // أثر واضح: سجّل أي تعديل خارج النافذة الطبيعية (بعد الاعتماد أو بعد انتقال المرحلة).
+    if (isConfirmed || stage !== 'PENDING_TECHNICAL_AUDIT') {
       activityLogService.create({
         userId: req.user.id,
         subscriberId: account.trialBalance.contract.subscriberId,

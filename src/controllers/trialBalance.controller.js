@@ -5,6 +5,8 @@ const { calculateBalances } = require("../utils/calculations/trialBalanceCalc");
 // استخدم الـ Prisma Client الموحد في مشروعك
 const prisma = require("../config/prisma");
 const fsNotify = require("../services/financialStatementsNotifications.service");
+const activityLogService = require("../services/activityLog.service");
+const { ROLES } = require("../config/roles");
 
 exports.uploadTrialBalance = async (req, res, next) => {
   try {
@@ -390,9 +392,12 @@ exports.updateAccountAdjustments = async (req, res, next) => {
     if (account.trialBalance.contract.workflowStage !== 'PENDING_TECHNICAL_AUDIT') {
       return res.status(403).json({ message: "لا يمكن التعديل، تم إغلاق هذه المرحلة من العمل." });
     }
- 
-    if (account.trialBalance.status === 'CONFIRMED') {
-      return res.status(403).json({ message: "لا يمكن تعديل التسويات، ميزان المراجعة معتمد ومقفل." });
+
+    // بعد الاعتماد: يُسمح للمدقق الفني فقط بالتعديل، وطالما العقد لا يزال في مرحلة
+    // التدقيق الفني (الشرط أعلاه). التعديل يظل على أعمدة التسوية في ورقة العمل.
+    const isConfirmed = account.trialBalance.status === 'CONFIRMED';
+    if (isConfirmed && req.user.role !== ROLES.TECHNICAL_AUDITOR) {
+      return res.status(403).json({ message: "ميزان المراجعة معتمد ومقفل. التعديل بعد الاعتماد متاح للمدقق الفني فقط." });
     }
 
     const accountForCalc = { ...account, ...req.body };
@@ -402,6 +407,17 @@ exports.updateAccountAdjustments = async (req, res, next) => {
       where: { id: accountId },
       data: { ...req.body, ...newCalculations }
     });
+
+    // أثر واضح: سجّل أي تعديل يحدث بعد اعتماد الميزان.
+    if (isConfirmed) {
+      activityLogService.create({
+        userId: req.user.id,
+        subscriberId: account.trialBalance.contract.subscriberId,
+        userType: "SUBSCRIBER",
+        action: "EDIT_TB_AFTER_CONFIRM",
+        message: `عدّل المدقق الفني الحساب ${account.accountCode} في ميزان مراجعة معتمد (عقد ${account.trialBalance.contractId}).`,
+      }).catch((e) => console.error("activity log failed:", e.message));
+    }
 
     res.status(200).json(updatedAccount);
 

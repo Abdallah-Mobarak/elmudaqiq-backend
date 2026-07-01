@@ -192,25 +192,32 @@ function equitySheet(contract, periodModels, genInc, terms) {
   const total = (o) => r2(o.capital + o.reserve + o.retained + o.remeasure);
   const row = (label, o, cls = "line") => `<tr class="${cls}"><td class="col-caption">${esc(label)}</td>${cell(o.capital || 0)}${cell(o.reserve || 0)}${cell(o.retained || 0)}${cell(o.remeasure || 0)}<td class="amount">${money(total(o))}</td></tr>`;
 
-  const order = np >= 3 ? [2, 1, 0] : [1, 0]; // oldest → newest
+  // oldest → newest. لفترة واحدة (شركة في سنتها الأولى) لا توجد حركة مقارنة.
+  const order = np >= 3 ? [2, 1, 0] : (np >= 2 ? [1, 0] : [0]);
   const rows = [];
-  const openIdx = order[0];
-  const openY = yearOf(openIdx);
-  rows.push(row(`الرصيد في 1 يناير ${openY != null ? openY + 1 : ""}م`, comp(openIdx), "subtotal"));
-  for (let k = 1; k < order.length; k++) {
-    const pIdx = order[k - 1], cIdx = order[k];
-    const p = comp(pIdx), c = comp(cIdx);
-    const ni = r2(netResult[cIdx] || 0);
-    const oci = r2(c.remeasure - p.remeasure);
-    const transfer = r2(c.reserve - p.reserve);
-    const capChange = r2(c.capital - p.capital);
-    const distributions = r2((p.retained + ni - transfer) - c.retained); // plug on retained
-    if (ni) rows.push(row("صافي الدخل للسنة", { retained: ni }));
-    if (oci) rows.push(row("الدخل الشامل الآخر", { remeasure: oci }));
-    if (transfer) rows.push(row("المحوّل للاحتياطي النظامي", { reserve: transfer, retained: -transfer }));
-    if (capChange) rows.push(row("التغير في رأس المال", { capital: capChange }));
-    if (distributions) rows.push(row("توزيعات أرباح / مسحوبات", { retained: -distributions }));
-    rows.push(row(`الرصيد في 31 ديسمبر ${yearOf(cIdx)}م`, c, "section-total"));
+  if (order.length < 2) {
+    // فترة واحدة فقط: نعرض رصيد الإقفال دون جدول حركة السنة السابقة.
+    const y = yearOf(order[0]);
+    rows.push(row(`الرصيد في 31 ديسمبر ${y != null ? y : ""}م`, comp(order[0]), "section-total"));
+  } else {
+    const openIdx = order[0];
+    const openY = yearOf(openIdx);
+    rows.push(row(`الرصيد في 1 يناير ${openY != null ? openY + 1 : ""}م`, comp(openIdx), "subtotal"));
+    for (let k = 1; k < order.length; k++) {
+      const pIdx = order[k - 1], cIdx = order[k];
+      const p = comp(pIdx), c = comp(cIdx);
+      const ni = r2(netResult[cIdx] || 0);
+      const oci = r2(c.remeasure - p.remeasure);
+      const transfer = r2(c.reserve - p.reserve);
+      const capChange = r2(c.capital - p.capital);
+      const distributions = r2((p.retained + ni - transfer) - c.retained); // plug on retained
+      if (ni) rows.push(row("صافي الدخل للسنة", { retained: ni }));
+      if (oci) rows.push(row("الدخل الشامل الآخر", { remeasure: oci }));
+      if (transfer) rows.push(row("المحوّل للاحتياطي النظامي", { reserve: transfer, retained: -transfer }));
+      if (capChange) rows.push(row("التغير في رأس المال", { capital: capChange }));
+      if (distributions) rows.push(row("توزيعات أرباح / مسحوبات", { retained: -distributions }));
+      rows.push(row(`الرصيد في 31 ديسمبر ${yearOf(cIdx)}م`, c, "section-total"));
+    }
   }
 
   const th = (t) => `<th class="col-amount">${esc(t)}</th>`;
@@ -295,16 +302,6 @@ const FW_NOUN = {
 /** Build the complete Zone-format report HTML for an engagement. */
 async function generateZoneReportHtml(contractId, options = {}) {
   const periodModels = await svc._loadModels(contractId);
-  // التقرير الكامل يقارن السنة الحالية بسنة سابقة (أعمدة المقارنة + قائمة التغيّر في
-  // حقوق الملكية)، لذا يلزم وجود فترتين على الأقل. نرجع رسالة واضحة بدل الانهيار.
-  if (periodModels.length < 2) {
-    const e = new Error(
-      "التقرير المالي الكامل يتطلب فترتين على الأقل (السنة الحالية وسنة المقارنة)، " +
-      "وتم العثور على فترة واحدة فقط لهذا العقد. الرجاء رفع ميزان مراجعة لسنة سابقة وتأكيده ثم إعادة المحاولة."
-    );
-    e.status = 400;
-    throw e;
-  }
   const contract = periodModels[0].contract;
   const extras = await getExtras(contractId);
   const auditor = await svc.loadAuditor(contract.subscriberId, options.reportDate);

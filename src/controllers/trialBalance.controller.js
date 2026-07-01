@@ -16,8 +16,25 @@ exports.uploadTrialBalance = async (req, res, next) => {
       return res.status(400).json({ message: "يرجى إرفاق ملف الإكسيل" });
     }
 
-    // 1. جلب ميزان المراجعة إن وجد
-    let trialBalance = await prisma.trialBalance.findFirst({ where: { contractId }, orderBy: { period: "desc" } });
+    // سنة الميزان الحالي = سنة نهاية السنة المالية للعقد (تُميّزه عن سنوات المقارنة).
+    const contract = await prisma.engagementContract.findUnique({
+      where: { id: contractId },
+      select: { fiscalYearEnd: true },
+    });
+    const currentYear = String(
+      (contract && contract.fiscalYearEnd ? new Date(contract.fiscalYearEnd) : new Date()).getFullYear()
+    );
+
+    // 1. جلب ميزان السنة الحالية إن وجد (مقيّد بالسنة الحالية، لا يمس سنوات المقارنة).
+    let trialBalance = await prisma.trialBalance.findFirst({ where: { contractId, period: currentYear } });
+
+    // ترحيل: لو فيه ميزان قديم بدون سنة (period="") نتبنّاه كميزان السنة الحالية.
+    if (!trialBalance) {
+      const legacy = await prisma.trialBalance.findFirst({ where: { contractId, period: "" } });
+      if (legacy) {
+        trialBalance = await prisma.trialBalance.update({ where: { id: legacy.id }, data: { period: currentYear } });
+      }
+    }
 
     if (trialBalance) {
       if (trialBalance.status === "CONFIRMED") {
@@ -28,9 +45,9 @@ exports.uploadTrialBalance = async (req, res, next) => {
         where: { trialBalanceId: trialBalance.id }
       });
     } else {
-      // إنشاء الميزان لأول مرة
+      // إنشاء ميزان السنة الحالية لأول مرة
       trialBalance = await prisma.trialBalance.create({
-        data: { contractId, uploadedById: userId, status: "DRAFT" }
+        data: { contractId, uploadedById: userId, status: "DRAFT", period: currentYear }
       });
     }
 

@@ -111,7 +111,9 @@ async function createManual(contractId, year, userId) {
     e.status = 400;
     throw e;
   }
-  await dropComparative(contractId, year);
+  // غير مدمّر: لو الفترة موجودة بالفعل نرجّعها كما هي بدل مسح ما تم إدخاله/حفظه.
+  const existing = await prisma.trialBalance.findFirst({ where: { contractId, period: year } });
+  if (existing) return getGrid(contractId, year);
 
   const tb = await prisma.trialBalance.create({
     data: { contractId, uploadedById: userId, status: "DRAFT", period: year },

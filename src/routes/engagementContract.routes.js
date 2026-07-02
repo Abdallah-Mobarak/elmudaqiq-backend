@@ -87,6 +87,13 @@ router.patch(
   controller.submitStage
 );
 
+// إرجاع العقد للمدقق الفني بملاحظات (إدارة الجودة / الشريك الإداري) — المنطق في السيرفس
+router.patch(
+  "/:id/return-to-technical",
+  requirePermission(PERMISSIONS.VIEW_CONTRACTS),
+  controller.returnToTechnical
+);
+
 // ===============================
 // Technical Auditor Routes
 // ===============================

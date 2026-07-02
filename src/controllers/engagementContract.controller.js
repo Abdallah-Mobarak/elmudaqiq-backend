@@ -151,3 +151,22 @@ exports.submitStage = async (req, res, next) => {
     next(error);
   }
 };
+
+// ===============================
+// Return contract to Technical Auditor with notes (QC / Managing Partner)
+// ===============================
+exports.returnToTechnical = async (req, res, next) => {
+  try {
+    const contract = await engagementContractService.returnToTechnicalAudit(
+      req.user,
+      req.params.id,
+      req.body.comments
+    );
+    res.status(200).json({
+      message: "تم إرجاع العقد للتدقيق الفني بنجاح",
+      data: contract
+    });
+  } catch (error) {
+    next(error);
+  }
+};

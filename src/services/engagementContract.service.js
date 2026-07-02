@@ -178,14 +178,13 @@ module.exports = {
 
     // --- Workflow Stage Filtering based on Role ---
     const viewPermissions = {
-      [ROLES.AUDIT_MANAGER]: ['PENDING_AUDIT_MANAGER', 'PENDING_TECHNICAL_AUDIT', 'PENDING_FIELD_AUDIT', 'PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_REGULATORY_FILING', 'PENDING_ARCHIVING', 'COMPLETED'],
-      [ROLES.TECHNICAL_AUDITOR]: ['PENDING_TECHNICAL_AUDIT', 'PENDING_FIELD_AUDIT', 'PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_REGULATORY_FILING', 'PENDING_ARCHIVING', 'COMPLETED'],
-      [ROLES.FIELD_AUDITOR]: ['PENDING_FIELD_AUDIT', 'PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_REGULATORY_FILING', 'PENDING_ARCHIVING', 'COMPLETED'],
-      [ROLES.ASSISTANT_TECHNICAL_AUDITOR]: ['PENDING_FIELD_AUDIT', 'PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_REGULATORY_FILING', 'PENDING_ARCHIVING', 'COMPLETED'],
-      [ROLES.QUALITY_CONTROL]: ['PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_REGULATORY_FILING', 'PENDING_ARCHIVING', 'COMPLETED'],
-      [ROLES.MANAGING_PARTNER]: ['PENDING_PARTNER_REVIEW', 'PENDING_REGULATORY_FILING', 'PENDING_ARCHIVING', 'COMPLETED'],
-      [ROLES.REGULATORY_FILINGS_OFFICER]: ['PENDING_REGULATORY_FILING', 'PENDING_ARCHIVING', 'COMPLETED'],
-      [ROLES.ARCHIVE_OFFICER]: ['PENDING_ARCHIVING', 'COMPLETED'],
+      [ROLES.AUDIT_MANAGER]: ['PENDING_AUDIT_MANAGER', 'PENDING_TECHNICAL_AUDIT', 'PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_ARCHIVING', 'COMPLETED'],
+      [ROLES.TECHNICAL_AUDITOR]: ['PENDING_TECHNICAL_AUDIT', 'PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_ARCHIVING', 'COMPLETED'],
+      [ROLES.ASSISTANT_TECHNICAL_AUDITOR]: ['PENDING_TECHNICAL_AUDIT', 'PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_ARCHIVING', 'COMPLETED'],
+      [ROLES.FIELD_AUDITOR]: ['PENDING_TECHNICAL_AUDIT', 'PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_ARCHIVING', 'COMPLETED'],
+      [ROLES.QUALITY_CONTROL]: ['PENDING_QC_REVIEW', 'PENDING_PARTNER_REVIEW', 'PENDING_ARCHIVING', 'COMPLETED'],
+      [ROLES.MANAGING_PARTNER]: ['PENDING_PARTNER_REVIEW', 'PENDING_ARCHIVING', 'COMPLETED'],
+      [ROLES.ARCHIVE]: ['PENDING_ARCHIVING', 'COMPLETED'],
     };
 
     if (viewPermissions[userRole]) {
@@ -739,53 +738,29 @@ module.exports = {
     const userRole = user.role;
     let nextStage = null;
 
+    // مسار العمل حسب صاحب العمل:
+    // التدقيق الفني → إدارة الجودة → الشريك الإداري → الأرشفة → مكتمل.
     const transitions = {
-      [ROLES.TECHNICAL_AUDITOR]: { from: 'PENDING_TECHNICAL_AUDIT', to: 'PENDING_FIELD_AUDIT' },
-      [ROLES.FIELD_AUDITOR]: { from: 'PENDING_FIELD_AUDIT', to: 'PENDING_QC_REVIEW' },
-      [ROLES.ASSISTANT_TECHNICAL_AUDITOR]: { from: 'PENDING_FIELD_AUDIT', to: 'PENDING_QC_REVIEW' },
+      [ROLES.TECHNICAL_AUDITOR]: { from: 'PENDING_TECHNICAL_AUDIT', to: 'PENDING_QC_REVIEW' },
       [ROLES.QUALITY_CONTROL]: { from: 'PENDING_QC_REVIEW', to: 'PENDING_PARTNER_REVIEW' },
-      [ROLES.MANAGING_PARTNER]: { from: 'PENDING_PARTNER_REVIEW', to: 'PENDING_REGULATORY_FILING' },
-      [ROLES.REGULATORY_FILINGS_OFFICER]: { from: 'PENDING_REGULATORY_FILING', to: 'PENDING_ARCHIVING' },
-      [ROLES.ARCHIVE_OFFICER]: { from: 'PENDING_ARCHIVING', to: 'COMPLETED' },
+      [ROLES.MANAGING_PARTNER]: { from: 'PENDING_PARTNER_REVIEW', to: 'PENDING_ARCHIVING' },
+      [ROLES.ARCHIVE]: { from: 'PENDING_ARCHIVING', to: 'COMPLETED' },
     };
 
     const transition = transitions[userRole];
 
     if (!transition || currentStage !== transition.from) {
-      throw { status: 403, customMessage: `Your role (${userRole}) cannot submit the contract from its current stage (${currentStage}).` };
+      throw { status: 403, customMessage: `دورك (${userRole}) لا يمكنه ترحيل العقد من مرحلته الحالية (${currentStage}).` };
     }
 
     nextStage = transition.to;
 
-    // Specific checks before advancing
+    // المدقق الفني لا يستطيع الترحيل قبل اعتماد ميزان المراجعة (السنة الحالية = أعلى فترة).
     if (userRole === ROLES.TECHNICAL_AUDITOR) {
-      // 1. Ensure Trial Balance is confirmed
       const trialBalance = await prisma.trialBalance.findFirst({ where: { contractId }, orderBy: { period: "desc" } });
       if (!trialBalance || trialBalance.status !== 'CONFIRMED') {
-        throw { status: 400, customMessage: "Cannot submit. The trial balance must be uploaded and confirmed first." };
+        throw { status: 400, customMessage: "لا يمكن الترحيل. يجب رفع ميزان المراجعة واعتماده أولاً." };
       }
-
-      // 2. Conditional Workflow: Check if field staff are assigned
-      const assignedFieldStaffCount = await prisma.contractStaff.count({
-        where: {
-          contractId,
-          role: { in: [ROLES.FIELD_AUDITOR, ROLES.ASSISTANT_TECHNICAL_AUDITOR] }
-        }
-      });
-
-      if (assignedFieldStaffCount > 0) {
-        nextStage = 'PENDING_FIELD_AUDIT'; // Go to Field Audit
-      } else {
-        nextStage = 'PENDING_QC_REVIEW'; // Skip Field Audit and go directly to QC
-      }
-
-    } else {
-      // For all other roles, use the predefined linear transition
-      const transition = transitions[userRole];
-      if (!transition || currentStage !== transition.from) {
-        throw { status: 403, customMessage: `Your role (${userRole}) cannot submit the contract from its current stage (${currentStage}).` };
-      }
-      nextStage = transition.to;
     }
 
     const updatedContract = await prisma.engagementContract.update({
@@ -796,10 +771,8 @@ module.exports = {
     // --- NOTIFICATION LOGIC ---
     // Map each next stage to the roles that should receive the notification.
     const stageToRoles = {
-      PENDING_FIELD_AUDIT: [ROLES.FIELD_AUDITOR, ROLES.ASSISTANT_TECHNICAL_AUDITOR],
       PENDING_QC_REVIEW: [ROLES.QUALITY_CONTROL],
       PENDING_PARTNER_REVIEW: [ROLES.MANAGING_PARTNER],
-      PENDING_REGULATORY_FILING: [ROLES.REGULATORY_FILINGS_OFFICER],
       PENDING_ARCHIVING: [ROLES.ARCHIVE],
     };
 
@@ -850,6 +823,52 @@ module.exports = {
     });
 
     return updatedContract;
+  },
+
+  // ===============================
+  // إرجاع العقد للمدقق الفني بملاحظات (إدارة الجودة أو الشريك الإداري)
+  // ===============================
+  returnToTechnicalAudit: async (user, contractId, comments) => {
+    const subscriberId = Number(user.subscriberId);
+    const contract = await prisma.engagementContract.findFirst({ where: { id: contractId, subscriberId } });
+    if (!contract) throw { status: 404, customMessage: "Contract not found" };
+
+    // من يحق له الإرجاع، والمرحلة المسموح الإرجاع منها لكل دور.
+    const allowedFrom = {
+      [ROLES.QUALITY_CONTROL]: 'PENDING_QC_REVIEW',
+      [ROLES.MANAGING_PARTNER]: 'PENDING_PARTNER_REVIEW',
+    };
+    const from = allowedFrom[user.role];
+    if (!from) {
+      throw { status: 403, customMessage: "غير مصرح: الإرجاع للتدقيق الفني متاح لإدارة الجودة أو الشريك الإداري فقط." };
+    }
+    if (contract.workflowStage !== from) {
+      throw { status: 400, customMessage: `لا يمكن الإرجاع من المرحلة الحالية (${contract.workflowStage}).` };
+    }
+
+    const updated = await prisma.engagementContract.update({
+      where: { id: contractId },
+      data: { workflowStage: 'PENDING_TECHNICAL_AUDIT', managerComments: comments || null },
+    });
+
+    const byLabel = user.role === ROLES.QUALITY_CONTROL ? "إدارة الجودة" : "الشريك الإداري";
+    await notify.notifyUsersByRole(subscriberId, ROLES.TECHNICAL_AUDITOR, {
+      title: "تم إرجاع العقد للتدقيق الفني بملاحظات",
+      message: `أعاد ${byLabel} العقد (${updated.customerName}) للتدقيق الفني${comments ? `: ${comments}` : "."}`,
+      type: NOTIFICATION_TYPES.CONTRACT_STAGE_ADVANCED,
+      entityType: ENTITY_TYPES.CONTRACT,
+      entityId: updated.id,
+    });
+
+    await activityLogService.create({
+      userId: user.id,
+      subscriberId,
+      userType: "SUBSCRIBER",
+      action: "RETURN_TO_TECHNICAL_AUDIT",
+      message: `${user.fullName} أعاد العقد ${contract.contractNumber} من ${from} إلى التدقيق الفني${comments ? ` بملاحظات: ${comments}` : ""}.`,
+    });
+
+    return updated;
   }
 
-}; 
+};

@@ -26,7 +26,7 @@ async function onStatementsGenerated(contract, _user) {
 /** Independent auditor's report issued → Archive. */
 async function onReportIssued(contract, _user) {
   if (!contract) return;
-  return notify.notifyUsersByRole(contract.subscriberId, ROLES.ARCHIVE, {
+  return notify.notifyUsersByRole(contract.subscriberId, ROLES.ARCHIVE_OFFICER, {
     title: "تم إصدار تقرير مراجع الحسابات",
     message: `تم إصدار تقرير مراجع الحسابات للارتباط «${label(contract)}» وأرشفته.`,
     type: NOTIFICATION_TYPES.REPORT_ISSUED,

@@ -12,7 +12,8 @@ const ROLES = {
   QUALITY_CONTROL: "QUALITY_CONTROL",
   MANAGING_PARTNER: "MANAGING_PARTNER",
   REGULATORY_FILINGS_OFFICER: "REGULATORY_FILINGS_OFFICER",
-  ARCHIVE: "ARCHIVE",
+  // القيمة يجب أن تطابق اسم الدور المزروع في الداتابيز (prisma/seed.js) = ARCHIVE_OFFICER
+  ARCHIVE_OFFICER: "ARCHIVE_OFFICER",
 };
 
 module.exports = { ROLES };

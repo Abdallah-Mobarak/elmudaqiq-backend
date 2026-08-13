@@ -60,6 +60,15 @@ app.use('/contracts', require("./routes/trialBalance.routes"));
 app.use('/worksheets', require("./routes/worksheet.routes"));
 app.use('/financial-statements', require("./routes/financialStatements.routes"));
   
+// Unmatched routes. Without this, Express answers with its built-in HTML page
+// ("Cannot POST /x"), and a frontend doing response.json() chokes on it.
+app.use((req, res) => {
+  res.status(404).json({
+    message: "المسار المطلوب غير موجود.",
+    path: `${req.method} ${req.originalUrl}`,
+  });
+});
+
 // Error Handler (ALWAYS LAST)
 app.use(errorMiddleware);
  

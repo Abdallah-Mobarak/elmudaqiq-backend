@@ -46,12 +46,21 @@ const MULTER_ERRORS = {
 module.exports = (err, req, res, next) => {
   const isProd = process.env.NODE_ENV === "production";
 
-  // Log with request context so a production timeout is traceable.
-  console.error(
-    `ERROR [${req.method} ${req.originalUrl}]`,
-    err && err.code ? `code=${err.code}` : "",
-    err
-  );
+  // Log with request context so a production failure is traceable.
+  // In production only the message is kept: Prisma embeds the whole rejected
+  // payload in its errors, so dumping the object wrote subscriber emails,
+  // phone numbers and password hashes straight into pm2's log files.
+  const tag = `ERROR [${req.method} ${req.originalUrl}]${err && err.code ? ` code=${err.code}` : ""}`;
+
+  if (isProd) {
+    const summary = (err && err.message ? String(err.message) : String(err))
+      .split("\n")[0]
+      .slice(0, 300);
+    console.error(tag, summary);
+    if (err && err.stack) console.error(err.stack.split("\n").slice(1, 4).join("\n"));
+  } else {
+    console.error(tag, err);
+  }
 
   // Plain thrown objects have no .message, and String({}) is "[object Object]".
   const describe = (e) => {

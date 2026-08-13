@@ -16,15 +16,8 @@ if (process.env.NODE_ENV !== "production") {
   globalThis.__almudaqiqPrisma = prisma;
 }
 
-// Close the pool cleanly so MySQL frees the connections on restart/deploy.
-// Attaching a signal listener suppresses Node's default "exit on signal", so the
-// handler has to terminate the process itself or PM2 would stall until it sends
-// SIGKILL.
-const shutdown = async () => {
-  try { await prisma.$disconnect(); } catch (_) { /* already closed */ }
-  process.exit(0);
-};
-process.once("SIGINT", shutdown);
-process.once("SIGTERM", shutdown);
+// Signal handling lives in server.js, which owns the HTTP server and can drain
+// in-flight requests before disconnecting. Registering listeners here too would
+// race with that and exit the process mid-request.
 
 module.exports = prisma;

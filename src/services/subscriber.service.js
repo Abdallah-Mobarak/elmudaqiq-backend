@@ -300,14 +300,22 @@ exports.create = async (data, files) => {
     throw { status: 400, customMessage: "Invalid City ID" };
   }
 
-  let subscriptionEndDate = null;
+  // The end date is always derived from the start date. Previously it was only
+  // computed when subscriptionStartDate was supplied, and the fallback below was
+  // `new Date()` - so omitting the start date created a subscription that had
+  // already expired at the moment it was created.
+  const subscriptionStartDate = data.subscriptionStartDate
+    ? new Date(data.subscriptionStartDate)
+    : new Date();
 
-  if (data.subscriptionStartDate) {
-    subscriptionEndDate = new Date(data.subscriptionStartDate);
-    subscriptionEndDate.setMonth(
-      subscriptionEndDate.getMonth() + Number(plan.durationMonths)
-    );
+  if (Number.isNaN(subscriptionStartDate.getTime())) {
+    throw { status: 400, customMessage: "تاريخ بداية الاشتراك غير صالح" };
   }
+
+  const subscriptionEndDate = new Date(subscriptionStartDate);
+  subscriptionEndDate.setMonth(
+    subscriptionEndDate.getMonth() + Number(plan.durationMonths)
+  );
 
   const subdomain = await generateUniqueSubdomain(data.ownersNames, data.licenseName);
 
@@ -377,8 +385,8 @@ exports.create = async (data, files) => {
       data: {
         subscriberId: newSubscriber.id,
         planId: Number(data.planId),
-        startDate: data.subscriptionStartDate ? new Date(data.subscriptionStartDate) : new Date(),
-        endDate: subscriptionEndDate || new Date(),
+        startDate: subscriptionStartDate,
+        endDate: subscriptionEndDate,
         amountPaid: plan.paidFees,
         paymentMethod: "CASH", // Default for initial creation or pass from data
         status: "ACTIVE",

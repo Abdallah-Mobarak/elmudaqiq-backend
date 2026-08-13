@@ -1,8 +1,7 @@
-const { PrismaClient } = require("@prisma/client");
 const { ROLE_PERMISSIONS } = require('../config/rolePermissions');
 const { ROLES } = require('../config/roles');
 
-const prisma = new PrismaClient();
+const prisma = require("../config/prisma");
 
 const requirePermission = (permission) => {
   return async (req, res, next) => {

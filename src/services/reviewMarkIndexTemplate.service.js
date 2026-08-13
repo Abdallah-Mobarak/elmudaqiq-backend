@@ -1,5 +1,4 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../config/prisma");
 const importExcelUtil = require("../utils/fileHandlers/importExcel");
 const exportExcelUtil = require("../utils/fileHandlers/exportExcel");
 

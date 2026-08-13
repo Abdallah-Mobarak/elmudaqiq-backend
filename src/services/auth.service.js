@@ -1,10 +1,9 @@
 const { sendOTPEmail } = require("./email.service");
-const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const generateOTP = require("../utils/generateOTP");
 
-const prisma = new PrismaClient();
+const prisma = require("../config/prisma");
 
 module.exports = {
 

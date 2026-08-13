@@ -1,5 +1,4 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../config/prisma");
 const bcrypt = require("bcryptjs");
 
 const saveUploadedFile = require("../utils/saveUploadedFile");
@@ -13,29 +12,185 @@ const { NOTIFICATION_TYPES, ENTITY_TYPES } = require("../config/notificationType
 // ===============================
 // Utils
 // ===============================
-const generateUniqueSubdomain = async (name) => {
-  let clean = (name || "")
+// Arabic -> Latin, so an Arabic office name still produces a readable subdomain.
+// Without this the old replace(/[^a-z0-9]/g, "") wiped every Arabic name down to
+// an empty string and EVERY subscriber fell back to the same "subscriber" base.
+const AR_TO_LATIN = {
+  "ا": "a", "أ": "a", "إ": "a", "آ": "a", "ب": "b", "ت": "t", "ث": "th", "ج": "j",
+  "ح": "h", "خ": "kh", "د": "d", "ذ": "dh", "ر": "r", "ز": "z", "س": "s", "ش": "sh",
+  "ص": "s", "ض": "d", "ط": "t", "ظ": "z", "ع": "a", "غ": "gh", "ف": "f", "ق": "q",
+  "ك": "k", "ل": "l", "م": "m", "ن": "n", "ه": "h", "ة": "h", "و": "w", "ي": "y",
+  "ى": "a", "ئ": "y", "ؤ": "w", "ء": "",
+};
+
+const slugify = (value) =>
+  String(value || "")
+    .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
+    .split("")
+    .map((ch) => (AR_TO_LATIN[ch] !== undefined ? AR_TO_LATIN[ch] : ch))
+    .join("")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/g, "");
 
-  if (!clean) clean = "subscriber";
+// Resolves the subdomain in ONE query instead of probing the DB once per attempt.
+// The old while (true) loop cost N+1 sequential round-trips for the Nth
+// subscriber - that is what made creation slower with every tenant added.
+const generateUniqueSubdomain = async (name, fallback) => {
+  const base = slugify(name) || slugify(fallback) || "subscriber";
 
-  let attempt = 0;
+  const rows = await prisma.subscriber.findMany({
+    where: { subdomain: { startsWith: base } },
+    select: { subdomain: true },
+  });
+  const taken = new Set(rows.map((r) => r.subdomain));
 
-  while (true) {
-    const suffix = attempt === 0 ? "" : `-${attempt}`;
-    // التعديل: تخزين الاسم المختصر فقط (Slug) بدلاً من الرابط الكامل
-    const subdomain = `${clean}${suffix}`;
+  if (!taken.has(base)) return base;
 
-    const existing = await prisma.subscriber.findUnique({
-      where: { subdomain },
-    });
+  for (let attempt = 1; attempt <= taken.size + 1; attempt++) {
+    const candidate = base + "-" + attempt;
+    if (!taken.has(candidate)) return candidate;
+  }
 
-    if (!existing) {
-      return subdomain;
+  return base + "-" + (taken.size + 2);
+};
+
+// ===============================
+// Master data snapshot
+// ===============================
+// Rows are copied in pages so neither Node's heap nor a single INSERT has to
+// hold an entire template table at once.
+const CLONE_CHUNK_SIZE = 500;
+
+const CLONE_JOBS = [
+  {
+    from: "accountGuideTemplate",
+    to: "accountGuide",
+    map: (t, subscriberId) => ({
+      subscriberId,
+      level: t.level,
+      accountNumber: t.accountNumber,
+      accountName: t.accountName,
+      rulesAndRegulations: t.rulesAndRegulations,
+      disclosureNotes: t.disclosureNotes,
+      code1: t.code1, code2: t.code2, code3: t.code3, code4: t.code4,
+      code5: t.code5, code6: t.code6, code7: t.code7, code8: t.code8,
+      objectiveCode: t.objectiveCode,
+      relatedObjectives: t.relatedObjectives,
+    }),
+  },
+  {
+    from: "reviewGuideTemplate",
+    to: "reviewGuide",
+    map: (t, subscriberId) => ({
+      subscriberId,
+      level: t.level,
+      separator: t.separator,
+      number: t.number,
+      statement: t.statement,
+      purpose: t.purpose,
+      responsiblePerson: t.responsiblePerson,
+      datePrepared: t.datePrepared,
+      dateReviewed: t.dateReviewed,
+      conclusion: t.conclusion,
+      attachments: t.attachments,
+      notes1: t.notes1, notes2: t.notes2, notes3: t.notes3,
+    }),
+  },
+  {
+    from: "fileStageTemplate",
+    to: "fileStage",
+    map: (t, subscriberId) => ({
+      subscriberId,
+      stageCode: t.stageCode,
+      stage: t.stage,
+      entityType: t.entityType,
+      economicSector: t.economicSector,
+      procedure: t.procedure,
+      scopeOfProcedure: t.scopeOfProcedure,
+      selectionMethod: t.selectionMethod,
+      examplesOfUse: t.examplesOfUse,
+      IAS: t.IAS, IFRS: t.IFRS, ISA: t.ISA,
+      relevantPolicies: t.relevantPolicies,
+      detailedExplanation: t.detailedExplanation,
+      formsToBeCompleted: t.formsToBeCompleted,
+      practicalProcedures: t.practicalProcedures,
+      associatedRisks: t.associatedRisks,
+      riskLevel: t.riskLevel,
+      responsibleAuthority: t.responsibleAuthority,
+      outputs: t.outputs,
+      implementationPeriod: t.implementationPeriod,
+      strengths: t.strengths,
+      potentialWeaknesses: t.potentialWeaknesses,
+      performanceIndicators: t.performanceIndicators,
+    }),
+  },
+  {
+    from: "reviewObjectiveStageTemplate",
+    to: "reviewObjectiveStage",
+    map: (t, subscriberId) => ({
+      subscriberId,
+      codesCollected: t.codesCollected,
+      numberOfCollectedObjectives: t.numberOfCollectedObjectives,
+      ethicalCompliancePercentage: t.ethicalCompliancePercentage,
+      professionalPlanningPercentage: t.professionalPlanningPercentage,
+      internalControlPercentage: t.internalControlPercentage,
+      evidencePercentage: t.evidencePercentage,
+      evaluationPercentage: t.evaluationPercentage,
+      documentationPercentage: t.documentationPercentage,
+      totalRelativeWeight: t.totalRelativeWeight,
+      codeOfEthics: t.codeOfEthics,
+      policies: t.policies,
+      ifrs: t.ifrs,
+      ias: t.ias,
+      notes: t.notes,
+    }),
+  },
+  {
+    from: "reviewMarkIndexTemplate",
+    to: "reviewMarkIndex",
+    map: (t, subscriberId) => ({
+      subscriberId,
+      codeImage: t.codeImage,
+      name: t.name,
+      shortDescription: t.shortDescription,
+      suggestedStage: t.suggestedStage,
+      whenToUse: t.whenToUse,
+      exampleShortForm: t.exampleShortForm,
+      sectorTags: t.sectorTags,
+      assertion: t.assertion,
+      benchmark: t.benchmark,
+      scoreWeight: t.scoreWeight,
+      severityLevel: t.severityLevel,
+      severityWeight: t.severityWeight,
+      priorityScore: t.priorityScore,
+      priorityRating: t.priorityRating,
+    }),
+  },
+];
+
+const cloneTemplates = async (tx, subscriberId) => {
+  for (const job of CLONE_JOBS) {
+    let cursor = null;
+
+    while (true) {
+      const batch = await tx[job.from].findMany({
+        take: CLONE_CHUNK_SIZE,
+        orderBy: { id: "asc" },
+        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      });
+
+      if (batch.length === 0) break;
+
+      await tx[job.to].createMany({
+        data: batch.map((t) => job.map(t, subscriberId)),
+      });
+
+      cursor = batch[batch.length - 1].id;
+      if (batch.length < CLONE_CHUNK_SIZE) break;
     }
-
-    attempt++;
   }
 };
 
@@ -142,9 +297,17 @@ exports.create = async (data, files) => {
     );
   }
 
-  const subdomain = await generateUniqueSubdomain(data.ownersNames);
+  const subdomain = await generateUniqueSubdomain(data.ownersNames, data.licenseName);
+
+  // Hash the temp password BEFORE opening the transaction. bcryptjs is a pure-JS
+  // implementation, so 10 rounds block the event loop for a few hundred ms - time
+  // that used to be burned inside the transaction's timeout budget.
+  const tempPassword = generatePassword(10);
+  const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
   // START TRANSACTION
+  // Explicit timeouts: Prisma defaults to maxWait 2s / timeout 5s, which the
+  // master-data cloning below blows straight through on a real dataset (P2028).
   const result = await prisma.$transaction(async (tx) => {
     // 1. Create Subscriber
     const newSubscriber = await tx.subscriber.create({
@@ -231,9 +394,7 @@ exports.create = async (data, files) => {
       }
     });
 
-    // 5. Create Owner User
-    const tempPassword = generatePassword(10);
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    // 5. Create Owner User (password hashed above, before the transaction)
 
     await tx.user.create({
       data: {
@@ -250,130 +411,12 @@ exports.create = async (data, files) => {
     }); 
 
     // ===============================
-    // 5. CLONE MASTER DATA (The "Snapshot" Logic)
+    // 6. CLONE MASTER DATA (The "Snapshot" Logic)
     // ===============================
-    
-    // A. Clone Account Guide
-    const accountTemplates = await tx.accountGuideTemplate.findMany();
-    if (accountTemplates.length > 0) {
-      await tx.accountGuide.createMany({
-        data: accountTemplates.map(t => ({
-          subscriberId: newSubscriber.id,
-          level: t.level,
-          accountNumber: t.accountNumber,
-          accountName: t.accountName,
-          rulesAndRegulations: t.rulesAndRegulations,
-          disclosureNotes: t.disclosureNotes,
-          code1: t.code1, code2: t.code2, code3: t.code3, code4: t.code4,
-          code5: t.code5, code6: t.code6, code7: t.code7, code8: t.code8,
-          objectiveCode: t.objectiveCode,
-          relatedObjectives: t.relatedObjectives
-        }))
-      });
-    }
-
-    // B. Clone Review Guide
-    const reviewTemplates = await tx.reviewGuideTemplate.findMany();
-    if (reviewTemplates.length > 0) {
-      await tx.reviewGuide.createMany({
-        data: reviewTemplates.map(t => ({
-          subscriberId: newSubscriber.id,
-          level: t.level,
-          separator: t.separator,
-          number: t.number,
-          statement: t.statement,
-          purpose: t.purpose,
-          responsiblePerson: t.responsiblePerson,
-          datePrepared: t.datePrepared,
-          dateReviewed: t.dateReviewed,
-          conclusion: t.conclusion,
-          attachments: t.attachments,
-          notes1: t.notes1, notes2: t.notes2, notes3: t.notes3
-        }))
-      });
-    }
-
-    // C. Clone File Stages
-    const fileStageTemplates = await tx.fileStageTemplate.findMany();
-    if (fileStageTemplates.length > 0) {
-      await tx.fileStage.createMany({
-        data: fileStageTemplates.map(t => ({
-          subscriberId: newSubscriber.id,
-          stageCode: t.stageCode,
-          stage: t.stage,
-          entityType: t.entityType,
-          economicSector: t.economicSector,
-          procedure: t.procedure,
-          scopeOfProcedure: t.scopeOfProcedure,
-          selectionMethod: t.selectionMethod,
-          examplesOfUse: t.examplesOfUse,
-          IAS: t.IAS, IFRS: t.IFRS, ISA: t.ISA,
-          relevantPolicies: t.relevantPolicies,
-          detailedExplanation: t.detailedExplanation,
-          formsToBeCompleted: t.formsToBeCompleted,
-          practicalProcedures: t.practicalProcedures,
-          associatedRisks: t.associatedRisks,
-          riskLevel: t.riskLevel,
-          responsibleAuthority: t.responsibleAuthority,
-          outputs: t.outputs,
-          implementationPeriod: t.implementationPeriod,
-          strengths: t.strengths,
-          potentialWeaknesses: t.potentialWeaknesses,
-          performanceIndicators: t.performanceIndicators
-        }))
-      });
-    }
-
-    // D. Clone Review Objective Stages
-    const objectiveTemplates = await tx.reviewObjectiveStageTemplate.findMany();
-    if (objectiveTemplates.length > 0) {
-      await tx.reviewObjectiveStage.createMany({
-        data: objectiveTemplates.map(t => ({
-          subscriberId: newSubscriber.id,
-          codesCollected: t.codesCollected,
-          numberOfCollectedObjectives: t.numberOfCollectedObjectives,
-          ethicalCompliancePercentage: t.ethicalCompliancePercentage,
-          professionalPlanningPercentage: t.professionalPlanningPercentage,
-          internalControlPercentage: t.internalControlPercentage,
-          evidencePercentage: t.evidencePercentage,
-          evaluationPercentage: t.evaluationPercentage,
-          documentationPercentage: t.documentationPercentage,
-          totalRelativeWeight: t.totalRelativeWeight,
-          codeOfEthics: t.codeOfEthics,
-          policies: t.policies,
-          ifrs: t.ifrs,
-          ias: t.ias,
-          notes: t.notes
-        }))
-      });
-    }
-
-    // E. Clone Review Mark Index
-    const markTemplates = await tx.reviewMarkIndexTemplate.findMany();
-    if (markTemplates.length > 0) {
-      await tx.reviewMarkIndex.createMany({
-        data: markTemplates.map(t => ({
-          subscriberId: newSubscriber.id,
-          codeImage: t.codeImage,
-          name: t.name,
-          shortDescription: t.shortDescription,
-          suggestedStage: t.suggestedStage,
-          whenToUse: t.whenToUse,
-          exampleShortForm: t.exampleShortForm,
-          sectorTags: t.sectorTags,
-          assertion: t.assertion,
-          benchmark: t.benchmark,
-          scoreWeight: t.scoreWeight,
-          severityLevel: t.severityLevel,
-          severityWeight: t.severityWeight,
-          priorityScore: t.priorityScore,
-          priorityRating: t.priorityRating
-        }))
-      });
-    }
+    await cloneTemplates(tx, newSubscriber.id);
 
     return { subscriber: newSubscriber, tempPassword };
-  });
+  }, { maxWait: 15000, timeout: 120000 });
 
   // 4. Send Email (Outside transaction to avoid blocking DB if email is slow)
   // We wrap this in try/catch so file upload and response don't fail if email fails
@@ -398,26 +441,18 @@ exports.create = async (data, files) => {
     emailStatus = `FAILED: ${error.message}`;
   }
 
-  //   uploaded 
-  await saveUploadedFile({
-    file: files?.licenseCertificate?.[0],
-    source: "subscriber",
-  });
-
-  await saveUploadedFile({
-    file: files?.taxCertificateFile?.[0],
-    source: "subscriber",
-  });
-
-  await saveUploadedFile({
-    file: files?.commercialActivityFile?.[0],
-    source: "subscriber",
-  });
- 
-  await saveUploadedFile({
-    file: files?.factoryLogo?.[0],
-    source: "subscriber",
-  });
+  //   uploaded
+  // The subscriber is already committed at this point, so bookkeeping failures
+  // here must never turn a successful creation into a 500.
+  try {
+    await Promise.all(
+      ["licenseCertificate", "taxCertificateFile", "commercialActivityFile", "factoryLogo"].map(
+        (field) => saveUploadedFile({ file: files?.[field]?.[0], source: "subscriber" })
+      )
+    );
+  } catch (error) {
+    console.error("Warning: Failed to record uploaded files.", error.message);
+  }
 
   // Return subscriber data + tempPassword (in case email failed) + email status
   return {

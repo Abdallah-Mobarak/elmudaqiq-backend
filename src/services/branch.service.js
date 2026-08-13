@@ -1,5 +1,4 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../config/prisma");
 const bcrypt = require("bcryptjs");
 const generatePassword = require("../utils/passwordGenerator");
 const { sendSubscriberWelcomeEmail } = require("./email.service");
@@ -40,8 +39,14 @@ module.exports = {
     });
     if (existingUser) throw { status: 400, customMessage: "User with this email already exists in your organization." };
 
+    // Hash before the transaction: bcryptjs is a pure-JS implementation, so 10
+    // rounds block the event loop for a few hundred ms that would otherwise be
+    // spent inside the transaction's timeout budget.
+    const tempPassword = generatePassword(10);
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
     // 3. Transaction: Create Branch & Manager User
-    return await prisma.$transaction(async (tx) => {
+    const { branch, manager } = await prisma.$transaction(async (tx) => {
       // A. Create Branch
       const branch = await tx.branch.create({
         data: {
@@ -59,10 +64,7 @@ module.exports = {
           managerRole = await tx.role.create({ data: { name: ROLES.BRANCH_MANAGER } });
       }
 
-      // C. Create Manager User
-      const tempPassword = generatePassword(10);
-      const hashedPassword = await bcrypt.hash(tempPassword, 10);
-
+      // C. Create Manager User (password hashed above, before the transaction)
       const manager = await tx.user.create({
         data: {
           fullName: data.managerName,
@@ -82,25 +84,29 @@ module.exports = {
         }
       });
 
-      // D. Send Invite Email (Temp Password approach for now)
-      try {
-          // Construct dynamic URL based on environment
-          const baseDomain = process.env.BASE_DOMAIN || "mudqiq.com";
-          const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
-          const loginUrl = `${protocol}://${subscriber.subdomain}.${baseDomain}`;
-
-          await sendSubscriberWelcomeEmail({
-              to: data.managerEmail,
-              loginUrl,
-              email: data.managerEmail,
-              tempPassword
-          });
-      } catch (e) {
-          console.error("Failed to send branch manager email", e);
-      }
-
       return { branch, manager };
-    });
+    }, { maxWait: 10000, timeout: 30000 });
+
+    // D. Send Invite Email (Temp Password approach for now)
+    //    Kept OUTSIDE the transaction: SMTP can take seconds, and holding a DB
+    //    transaction open for it used to blow the 5s default timeout (P2028).
+    try {
+        // Construct dynamic URL based on environment
+        const baseDomain = process.env.BASE_DOMAIN || "mudqiq.com";
+        const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+        const loginUrl = `${protocol}://${subscriber.subdomain}.${baseDomain}`;
+
+        await sendSubscriberWelcomeEmail({
+            to: data.managerEmail,
+            loginUrl,
+            email: data.managerEmail,
+            tempPassword
+        });
+    } catch (e) {
+        console.error("Failed to send branch manager email", e);
+    }
+
+    return { branch, manager };
   },
 
   // ===============================

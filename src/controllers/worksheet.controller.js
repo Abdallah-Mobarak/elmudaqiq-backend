@@ -96,7 +96,12 @@ exports.saveSort = async (req, res, next) => {
       data: { worksheetOrder: null },
     });
 
-    await prisma.$transaction([...updates, resetOthers]);
+    // One UPDATE per account: a large trial balance runs well past Prisma's 5s
+    // default and fails with P2028.
+    await prisma.$transaction([...updates, resetOthers], {
+      maxWait: 10000,
+      timeout: 120000,
+    });
 
     res.status(200).json({
       message: `تم حفظ ترتيب ${sorted.length} حساب بنجاح.`,
@@ -314,7 +319,9 @@ exports.assignAccounts = async (req, res, next) => {
       })
     );
 
-    await prisma.$transaction(updates);
+    // One UPDATE per assignment: a large batch runs well past Prisma's 5s
+    // default and fails with P2028.
+    await prisma.$transaction(updates, { maxWait: 10000, timeout: 120000 });
 
     res.status(200).json({
       message: `تم تعيين ${assignments.length} حساب بنجاح.`,

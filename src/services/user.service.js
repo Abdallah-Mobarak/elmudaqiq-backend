@@ -1,7 +1,6 @@
 // d:\Test\ERP\el mudaqiq\src\services\user.service.js
 
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../config/prisma");
 const bcrypt = require("bcryptjs");
 const generatePassword = require("../utils/passwordGenerator");
 const { sendSubscriberWelcomeEmail } = require("./email.service");

@@ -1,5 +1,4 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../config/prisma");
 const notify = require("../utils/notify");
 const { NOTIFICATION_TYPES, ENTITY_TYPES } = require("../config/notificationTypes");
 

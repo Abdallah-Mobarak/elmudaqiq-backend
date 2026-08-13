@@ -247,10 +247,22 @@ exports.create = async (data, files) => {
     }
   }
 
- // Check required files
- if (!getFile(files, "licenseCertificate")) {
-    throw { status: 400, customMessage: "licenseCertificate file is required" };
-}
+  // Check required files.
+  // These three columns are NOT NULL in the schema. Only licenseCertificate was
+  // ever validated, so a missing tax / commercial-activity upload reached Prisma
+  // and failed with a raw "Argument `taxCertificateFile` must not be null" 500
+  // instead of telling the admin which file to attach.
+  const REQUIRED_FILES = {
+    licenseCertificate: "ملف رخصة المزاولة",
+    taxCertificateFile: "ملف الشهادة الضريبية",
+    commercialActivityFile: "ملف النشاط التجاري",
+  };
+
+  for (const [field, label] of Object.entries(REQUIRED_FILES)) {
+    if (!getFile(files, field)) {
+      throw { status: 400, customMessage: `${label} مطلوب (${field})` };
+    }
+  }
 
   const existing = await prisma.subscriber.findUnique({
     where: { licenseNumber: data.licenseNumber },

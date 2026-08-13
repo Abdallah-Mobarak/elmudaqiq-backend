@@ -101,6 +101,19 @@ module.exports = (err, req, res, next) => {
     return send(status, message);
   }
 
+  // Prisma rejected the query shape - e.g. a NOT NULL column received null
+  // because a required upload was missing. These carry no .code, so they used to
+  // fall through to the 500 fallback and reached the client as a raw Prisma dump.
+  if (err && err.name === "PrismaClientValidationError") {
+    const missing = /Argument `(\w+)` must not be null/.exec(err.message || "");
+    return send(
+      400,
+      missing
+        ? `حقل مطلوب ناقص: (${missing[1]}). برجاء استكمال كل الحقول والملفات الإلزامية.`
+        : "بيانات غير مكتملة أو غير صالحة. برجاء مراجعة الحقول والملفات المطلوبة."
+    );
+  }
+
   // Custom errors thrown in services: { customMessage, status }
   if (err && err.customMessage) {
     return send(err.status || 400, err.customMessage);

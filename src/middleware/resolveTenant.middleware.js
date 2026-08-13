@@ -1,6 +1,25 @@
 const prisma = require("../config/prisma");
 const net = require("net"); //check the ip
 
+// Labels that are never a tenant: the apex itself, the API host, and www.
+const RESERVED_LABELS = ["www", "api", "mudqiq", "localhost"];
+
+/**
+ * Pull the tenant label out of a hostname.
+ * Production: office.mudqiq.com -> "office"
+ * Local with a hosts entry: office.localhost -> "office"
+ * Anything else (IPs, the apex, api.*, www.*) -> null
+ */
+function subdomainFromHost(host) {
+  if (!host || net.isIP(host)) return null;
+
+  const parts = host.split(".");
+  if (parts.length <= 1) return null;
+  if (RESERVED_LABELS.includes(parts[0])) return null;
+
+  return parts.length >= 3 || parts.includes("localhost") ? parts[0] : null;
+}
+
 async function resolveTenant(req, res, next) {
   try {
     let subdomain;
@@ -14,25 +33,22 @@ async function resolveTenant(req, res, next) {
 
     // 2. Check Hostname (Browser/Production/Local with hosts file)
     if (!subdomain) {
-      const host = req.hostname; 
+      subdomain = subdomainFromHost(req.hostname);
+    }
 
-      // تجاهل الـ IP Addresses تماماً (مثل 127.0.0.1 أو 192.168.1.5)
-      if (host && !net.isIP(host)) {
-        const parts = host.split(".");
-        
-        // Logic to extract subdomain:
-        // Production: sub.domain.com -> parts[0]
-        // Local with hosts: sub.localhost -> parts[0]
-        // Ignore 'www', 'api', or direct IP/localhost access
-        if (parts.length > 1 && !["www", "api", "mudqiq", "localhost"].includes(parts[0])) {
-           // Ensure it's not just "localhost" (length 1)
-           // Localhost logic: parts[1] is 'localhost' (e.g. tenant.localhost)
-           // Production logic: parts length is usually 3 (tenant.domain.com)
-           if (parts.length >= 3 || parts.includes("localhost")) {
-             subdomain = parts[0];
-           }
-        }
-      } 
+    // 3. Fall back to the browser's Origin.
+    // The API lives on api.mudqiq.com, so req.hostname is always "api" here and
+    // step 2 can never identify a tenant in production. A browser on
+    // office.mudqiq.com still sends Origin: https://office.mudqiq.com, which
+    // means a subscriber request stays correctly scoped even if the frontend
+    // forgets x-tenant — previously that silently fell through and the request
+    // was handled as if it came from an admin.
+    if (!subdomain && req.headers.origin) {
+      try {
+        subdomain = subdomainFromHost(new URL(req.headers.origin).hostname);
+      } catch (_) {
+        // Malformed Origin: ignore it and fall through to the public path.
+      }
     }
 
     if (!subdomain) {
